@@ -33,7 +33,7 @@ victoriametrics_vars:
         enabled: false
         access_modes:
           - ReadWriteOnce
-        class: longhorn
+        class: longhorn-encrypted
         size: 5Gi
     default_dashboards:
       timezone: utc
