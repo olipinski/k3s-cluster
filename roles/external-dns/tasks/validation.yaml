@@ -1,7 +1,7 @@
 ---
 - name: Role Facts
   ansible.builtin.include_role:
-    name: '{{ role }}'
+    name: "{{ role }}"
     tasks_from: facts
   loop:
     - cluster
@@ -17,7 +17,7 @@
   block:
     - name: Validate project url
       ansible.builtin.uri:
-        url: '{{ externaldns_project.url }}/{{ externaldns_project.tag }}'
+        url: "{{ externaldns_project.url }}/{{ externaldns_project.tag }}"
         timeout: 5
       register: result
       delay: 1
@@ -28,21 +28,21 @@
       block:
         - name: Add repository
           kubernetes.core.helm_repository:
-            name: '{{ externaldns_vars.kubernetes.helm.repository.org }}'
-            repo_url: '{{ externaldns_map.helm.repository.url }}'
+            name: "{{ externaldns_vars.kubernetes.helm.repository.org }}"
+            repo_url: "{{ externaldns_map.helm.repository.url }}"
 
         - name: Get deployed chart release info
           kubernetes.core.helm_info:
-            kubeconfig: '{{ k3s_project.cluster.kubeconfig }}'
-            name: '{{ externaldns_vars.kubernetes.helm.chart.name }}'
-            namespace: '{{ externaldns_vars.kubernetes.namespace }}'
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            name: "{{ externaldns_vars.kubernetes.helm.chart.name }}"
+            namespace: "{{ externaldns_vars.kubernetes.namespace }}"
           register: release
           changed_when: false
 
         - name: Set comparison fact
           ansible.builtin.set_fact:
             comparison:
-              chart: '{{ externaldns_map.helm.chart.version }}'
+              chart: "{{ externaldns_map.helm.chart.version }}"
               release: "{{ (release.status.chart | default('0')).split('-')[-1] }}"
 
         - name: Validate api token values
@@ -95,7 +95,7 @@
                     --namespace {{ externaldns_vars.kubernetes.namespace }}
                     --version {{ externaldns_vars.kubernetes.helm.chart.version }}
                     --context 3 --values -
-                stdin: '{{ chart_values | to_yaml }}'
+                stdin: "{{ chart_values | to_yaml }}"
               register: result
               delay: 1
               retries: 3
@@ -110,17 +110,17 @@
               ansible.builtin.command:
                 cmd: bash -c "{{
                   ' '.join(['diff', '-u', '<(curl', '-s ' +
-                    '/'.join([externaldns_map.helm.platform.raw,
-                      externaldns_vars.kubernetes.helm.repository.org,
-                      externaldns_vars.kubernetes.helm.repository.name, 'refs', 'tags',
-                      '-'.join([externaldns_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.release]), 'charts',
-                      externaldns_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')',
+                  '/'.join([externaldns_map.helm.platform.raw,
+                  externaldns_vars.kubernetes.helm.repository.org,
+                  externaldns_vars.kubernetes.helm.repository.name, 'refs', 'tags',
+                  '-'.join([externaldns_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.release]), 'charts',
+                  externaldns_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')',
                   '<(curl', '-s ' +
-                    '/'.join([externaldns_map.helm.platform.raw,
-                      externaldns_vars.kubernetes.helm.repository.org,
-                      externaldns_vars.kubernetes.helm.repository.name, 'refs', 'tags',
-                      '-'.join([externaldns_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.chart]), 'charts',
-                      externaldns_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')'])
+                  '/'.join([externaldns_map.helm.platform.raw,
+                  externaldns_vars.kubernetes.helm.repository.org,
+                  externaldns_vars.kubernetes.helm.repository.name, 'refs', 'tags',
+                  '-'.join([externaldns_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.chart]), 'charts',
+                  externaldns_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')'])
                   }}"
               register: result
               delay: 1

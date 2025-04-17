@@ -309,3 +309,7 @@ server:
     requests:
       cpu: {{ argocd_vars.kubernetes.server.resources.requests.cpu }}
       memory: {{ argocd_vars.kubernetes.server.resources.requests.memory }}
+tolerations:
+  - key: kubernetes.io/arch
+    operator: Exists
+    effect: NoSchedule

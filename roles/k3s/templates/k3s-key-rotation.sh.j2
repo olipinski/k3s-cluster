@@ -1,0 +1,66 @@
+#!/bin/bash
+set -e
+
+# Script to rotate K3s encryption keys
+
+ENCRYPTION_DIR="{{ k3s_map.node.directory.encryption }}"
+CONFIG_FILE="$ENCRYPTION_DIR/encryption-config.yaml"
+BACKUP_DIR="$ENCRYPTION_DIR/backups"
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
+
+# Create backup directory if it doesn't exist
+mkdir -p "$BACKUP_DIR"
+
+# Backup current config
+cp "$CONFIG_FILE" "$BACKUP_DIR/encryption-config-$TIMESTAMP.yaml"
+
+# Generate new encryption key
+NEW_KEY=$(head -c 32 /dev/urandom | base64)
+
+# Create new config with the new key as the first provider
+cat > "$CONFIG_FILE" << EOF
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+      - secrets
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: $NEW_KEY
+            - name: key2
+              secret: {{ global_map.k3s.encryption.key }}
+      - identity: {}
+EOF
+
+# Update permissions
+chmod 0600 "$CONFIG_FILE"
+
+# Restart K3s to apply the new key
+systemctl restart k3s.service
+
+# Wait for the API server to be available
+timeout 300 bash -c 'until kubectl get nodes &>/dev/null; do echo "Waiting for API server..."; sleep 5; done'
+
+# Re-encrypt all secrets with the new key
+kubectl get secrets --all-namespaces -o json | kubectl replace -f -
+
+# Remove the old key after all secrets are re-encrypted
+cat > "$CONFIG_FILE" << EOF
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+      - secrets
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: $NEW_KEY
+      - identity: {}
+EOF
+
+# Update global encryption key in Ansible vault
+# (This part requires manual update by an administrator)
+echo "Encryption key rotation completed. Please update the global_map.k3s.encryption.key in the Ansible vault."

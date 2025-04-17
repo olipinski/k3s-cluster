@@ -18,20 +18,11 @@
         - ansible_run_tags not in [[], ['all']]
         - ansible_run_tags | difference(global_map.tags.play) | length > 0
 
-- name: Cluster Provisioning
-  hosts: cluster
-  become: true
-  gather_facts: true
-  roles:
-    - cluster
-  tags: cluster
-
 - name: LoadBalancer Provisioning
   hosts: cluster
   become: true
   gather_facts: true
   tags:
-    - cluster
     - kubernetes
   tasks:
     - name: Setup loadbalancer
@@ -59,7 +50,7 @@
   post_tasks:
     - name: Perform post-install tasks
       ansible.builtin.include_role:
-        name: '{{ postinstall }}'
+        name: "{{ postinstall }}"
         tasks_from: postinstall
       loop:
         - argo-cd

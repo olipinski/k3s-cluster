@@ -1,7 +1,7 @@
 ---
 - name: Role Facts
   ansible.builtin.include_role:
-    name: '{{ role }}'
+    name: "{{ role }}"
     tasks_from: facts
   loop:
     - cert-manager
@@ -18,7 +18,7 @@
   block:
     - name: Validate project url
       ansible.builtin.uri:
-        url: '{{ metricsserver_project.url }}/{{ metricsserver_project.tag }}'
+        url: "{{ metricsserver_project.url }}/{{ metricsserver_project.tag }}"
         timeout: 5
       register: result
       delay: 1
@@ -29,21 +29,21 @@
       block:
         - name: Add repository
           kubernetes.core.helm_repository:
-            name: '{{ metricsserver_vars.kubernetes.helm.repository.name }}'
-            repo_url: '{{ metricsserver_map.helm.repository.url }}'
+            name: "{{ metricsserver_vars.kubernetes.helm.repository.name }}"
+            repo_url: "{{ metricsserver_map.helm.repository.url }}"
 
         - name: Get deployed chart release info
           kubernetes.core.helm_info:
-            kubeconfig: '{{ k3s_project.cluster.kubeconfig }}'
-            name: '{{ metricsserver_vars.kubernetes.helm.chart.name }}'
-            namespace: '{{ metricsserver_vars.kubernetes.namespace }}'
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            name: "{{ metricsserver_vars.kubernetes.helm.chart.name }}"
+            namespace: "{{ metricsserver_vars.kubernetes.namespace }}"
           register: release
           changed_when: false
 
         - name: Set comparison fact
           ansible.builtin.set_fact:
             comparison:
-              chart: '{{ metricsserver_map.helm.chart.version }}'
+              chart: "{{ metricsserver_map.helm.chart.version }}"
               release: "{{ (release.status.chart | default('0')).split('-')[-1] }}"
 
         - name: Set chart postinstall fact
@@ -88,7 +88,7 @@
                     --namespace {{ metricsserver_vars.kubernetes.namespace }}
                     --version {{ metricsserver_vars.kubernetes.helm.chart.version }}
                     --context 3 --values -
-                stdin: '{{ chart_values | to_yaml }}'
+                stdin: "{{ chart_values | to_yaml }}"
               register: result
               delay: 1
               retries: 3
@@ -103,17 +103,17 @@
               ansible.builtin.command:
                 cmd: bash -c "{{
                   ' '.join(['diff', '-u', '<(curl', '-s ' +
-                    '/'.join([metricsserver_map.helm.platform.raw,
-                      metricsserver_vars.kubernetes.helm.repository.org,
-                      metricsserver_vars.kubernetes.helm.repository.name, 'refs', 'tags',
-                      '-'.join([metricsserver_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.release]), 'charts',
-                      metricsserver_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')',
+                  '/'.join([metricsserver_map.helm.platform.raw,
+                  metricsserver_vars.kubernetes.helm.repository.org,
+                  metricsserver_vars.kubernetes.helm.repository.name, 'refs', 'tags',
+                  '-'.join([metricsserver_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.release]), 'charts',
+                  metricsserver_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')',
                   '<(curl', '-s ' +
-                    '/'.join([metricsserver_map.helm.platform.raw,
-                      metricsserver_vars.kubernetes.helm.repository.org,
-                      metricsserver_vars.kubernetes.helm.repository.name, 'refs', 'tags',
-                      '-'.join([metricsserver_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.chart]), 'charts',
-                      metricsserver_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')'])
+                  '/'.join([metricsserver_map.helm.platform.raw,
+                  metricsserver_vars.kubernetes.helm.repository.org,
+                  metricsserver_vars.kubernetes.helm.repository.name, 'refs', 'tags',
+                  '-'.join([metricsserver_vars.kubernetes.helm.chart.name, 'helm', 'chart', comparison.chart]), 'charts',
+                  metricsserver_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')'])
                   }}"
               register: result
               delay: 1

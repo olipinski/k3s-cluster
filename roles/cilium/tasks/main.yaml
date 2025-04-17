@@ -30,12 +30,12 @@
 
     - name: Install binary
       ansible.builtin.unarchive:
-        src: /tmp/{{ item.file }}
-        dest: '{{ k3s_map.node.directory.bin }}'
-        owner: root
-        group: root
-        mode: '755'
-        remote_src: true
+          src: '{{ cilium_project.release.cli.url }}/{{ cilium_project.release.cli.file | replace('arm64', ansible_architecture) }}'
+          dest: '{{ k3s_map.node.directory.bin }}'
+          owner: root
+          group: root
+          mode: '755'
+          remote_src: true
       loop: '{{ cilium_resources.release }}'
 
     - name: Remove archive

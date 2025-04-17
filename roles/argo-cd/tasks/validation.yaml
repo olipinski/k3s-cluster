@@ -1,7 +1,7 @@
 ---
 - name: Role Facts
   ansible.builtin.include_role:
-    name: '{{ role }}'
+    name: "{{ role }}"
     tasks_from: facts
   loop:
     - cert-manager
@@ -18,7 +18,7 @@
   block:
     - name: Validate project url
       ansible.builtin.uri:
-        url: '{{ argocd_project.url }}/{{ argocd_project.tag }}'
+        url: "{{ argocd_project.url }}/{{ argocd_project.tag }}"
         timeout: 5
       register: result
       delay: 1
@@ -27,7 +27,7 @@
 
     - name: Validate release checksum url
       ansible.builtin.uri:
-        url: '{{ argocd_project.release.url }}/{{ argocd_project.release.checksum }}'
+        url: "{{ argocd_project.release.url }}/{{ argocd_project.release.checksum }}"
         timeout: 5
       register: result
       delay: 1
@@ -36,7 +36,7 @@
 
     - name: Validate release file url
       ansible.builtin.uri:
-        url: '{{ argocd_project.release.url }}/{{ argocd_project.release.file }}'
+        url: "{{ argocd_project.release.url }}/{{ argocd_project.release.file }}"
         timeout: 5
       register: result
       delay: 1
@@ -47,21 +47,21 @@
       block:
         - name: Add repository
           kubernetes.core.helm_repository:
-            name: '{{ argocd_vars.kubernetes.helm.repository.org }}'
-            repo_url: '{{ argocd_map.helm.repository.url }}'
+            name: "{{ argocd_vars.kubernetes.helm.repository.org }}"
+            repo_url: "{{ argocd_map.helm.repository.url }}"
 
         - name: Get deployed chart release info
           kubernetes.core.helm_info:
-            kubeconfig: '{{ k3s_project.cluster.kubeconfig }}'
-            name: '{{ argocd_vars.kubernetes.helm.chart.name }}'
-            namespace: '{{ argocd_vars.kubernetes.namespace }}'
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            name: "{{ argocd_vars.kubernetes.helm.chart.name }}"
+            namespace: "{{ argocd_vars.kubernetes.namespace }}"
           register: release
           changed_when: false
 
         - name: Set comparison fact
           ansible.builtin.set_fact:
             comparison:
-              chart: '{{ argocd_map.helm.chart.version }}'
+              chart: "{{ argocd_map.helm.chart.version }}"
               release: "{{ (release.status.chart | default('0')).split('-')[-1] }}"
 
         - name: Validate configuration params values
@@ -130,7 +130,7 @@
                     --namespace {{ argocd_vars.kubernetes.namespace }}
                     --version {{ argocd_vars.kubernetes.helm.chart.version }}
                     --context 3 --values -
-                stdin: '{{ chart_values | to_yaml }}'
+                stdin: "{{ chart_values | to_yaml }}"
               register: result
               delay: 1
               retries: 3
@@ -145,17 +145,17 @@
               ansible.builtin.command:
                 cmd: bash -c "{{
                   ' '.join(['diff', '-u', '<(curl', '-s ' +
-                    '/'.join([argocd_map.helm.platform.raw,
-                      argocd_vars.kubernetes.helm.repository.org,
-                      argocd_vars.kubernetes.helm.repository.name, 'refs', 'tags',
-                      '-'.join([argocd_vars.kubernetes.helm.chart.name, comparison.release]), 'charts',
-                      argocd_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')',
+                  '/'.join([argocd_map.helm.platform.raw,
+                  argocd_vars.kubernetes.helm.repository.org,
+                  argocd_vars.kubernetes.helm.repository.name, 'refs', 'tags',
+                  '-'.join([argocd_vars.kubernetes.helm.chart.name, comparison.release]), 'charts',
+                  argocd_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')',
                   '<(curl', '-s ' +
-                    '/'.join([argocd_map.helm.platform.raw,
-                      argocd_vars.kubernetes.helm.repository.org,
-                      argocd_vars.kubernetes.helm.repository.name, 'refs', 'tags',
-                      '-'.join([argocd_vars.kubernetes.helm.chart.name, comparison.chart]), 'charts',
-                      argocd_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')'])
+                  '/'.join([argocd_map.helm.platform.raw,
+                  argocd_vars.kubernetes.helm.repository.org,
+                  argocd_vars.kubernetes.helm.repository.name, 'refs', 'tags',
+                  '-'.join([argocd_vars.kubernetes.helm.chart.name, comparison.chart]), 'charts',
+                  argocd_vars.kubernetes.helm.chart.name, 'values.yaml']) + ')'])
                   }}"
               register: result
               delay: 1

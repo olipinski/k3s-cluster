@@ -9,10 +9,10 @@
   block:
     - name: Remove repository
       kubernetes.core.helm_repository:
-        name: '{{ item }}'
+        name: "{{ item }}"
         repo_state: absent
       loop:
-        - '{{ victoriametrics_vars.kubernetes.helm.repository.grafana.org }}'
-        - '{{ victoriametrics_vars.kubernetes.helm.repository.prometheus.org }}'
-        - '{{ victoriametrics_vars.kubernetes.helm.repository.victoriametrics.org }}'
+        - "{{ victoriametrics_vars.kubernetes.helm.repository.grafana.org }}"
+        - "{{ victoriametrics_vars.kubernetes.helm.repository.prometheus.org }}"
+        - "{{ victoriametrics_vars.kubernetes.helm.repository.victoriametrics.org }}"
       when: "'helm' in ansible_facts.packages"

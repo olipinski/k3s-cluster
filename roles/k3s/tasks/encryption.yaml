@@ -1,0 +1,47 @@
+---
+- name: Create encryption directory
+  ansible.builtin.file:
+    path: "{{ k3s_map.node.directory.encryption }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Create encryption configuration
+  ansible.builtin.template:
+    src: encryption-config.yaml.j2
+    dest: "{{ k3s_project.cluster.encryption_config }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: k3s_vars.encryption.enabled | bool
+
+- name: Add encryption configuration to K3s config
+  ansible.builtin.lineinfile:
+    path: "{{ k3s_project.cluster.config }}"
+    line: "secrets-encryption: true"
+    regexp: "^secrets-encryption:"
+    state: present
+  when: k3s_vars.encryption.enabled | bool
+  notify: Restart service
+
+- name: Set up key rotation cron job
+  ansible.builtin.cron:
+    name: "K3s encryption key rotation"
+    job: "/usr/local/bin/k3s-key-rotation.sh"
+    user: root
+    special_time: monthly
+  when:
+    - k3s_vars.encryption.enabled | bool
+    - inventory_hostname in k3s_map.server.hosts
+
+- name: Create key rotation script
+  ansible.builtin.template:
+    src: k3s-key-rotation.sh.j2
+    dest: /usr/local/bin/k3s-key-rotation.sh
+    owner: root
+    group: root
+    mode: "0700"
+  when:
+    - k3s_vars.encryption.enabled | bool
+    - inventory_hostname in k3s_map.server.hosts

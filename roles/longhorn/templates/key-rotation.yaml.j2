@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: longhorn-encryption-key-rotation
+  namespace: {{ longhorn_vars.kubernetes.namespace }}
+spec:
+  schedule: "0 0 1 */3 *"  # Run every 3 months
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: longhorn-service-account
+          containers:
+          - name: key-rotation
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              #!/bin/bash
+              set -e
+
+              # Generate new encryption key
+              NEW_KEY=$(head -c 32 /dev/urandom | base64)
+
+              # Store new key in temporary secret
+              kubectl create secret generic {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new \
+                --namespace {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }} \
+                --from-literal=CRYPTO_KEY_VALUE="$NEW_KEY" \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              echo "Created new encryption key, now updating volumes..."
+
+              # Get all volumes and rotate keys
+              VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io -o jsonpath='{.items[*].metadata.name}')
+
+              for VOLUME in $VOLUMES; do
+                if kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.spec.encrypted}' | grep -q "true"; then
+                  echo "Rotating encryption key for volume: $VOLUME"
+                  kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
+                    -p='[{"op": "replace", "path": "/spec/keyProvider", "value": "kubernetes-secret"}]'
+                  kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
+                    -p='[{"op": "replace", "path": "/spec/keySecret", "value": "{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new@{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}"}]'
+                fi
+              done
+
+              echo "Waiting for key rotation to complete..."
+              sleep 300
+
+              # Update main key
+              kubectl get secret {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new \
+                -n {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }} -o yaml | \
+                kubectl replace -f - --force
+
+              echo "Key rotation completed."
+          restartPolicy: OnFailure

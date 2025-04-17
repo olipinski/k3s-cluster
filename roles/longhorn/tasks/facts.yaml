@@ -4,27 +4,27 @@
     longhorn_map:
       credentials:
         backup:
-          secret: '{{ longhorn_vars.kubernetes.helm.chart.name }}-backup-credentials'
+          secret: "{{ longhorn_vars.kubernetes.helm.chart.name }}-backup-credentials"
       directory:
         data: /var/lib/longhorn
       helm:
         chart:
-          reference: '{{ longhorn_vars.kubernetes.helm.repository.org }}/{{ longhorn_vars.kubernetes.helm.chart.name }}'
-          version: '{{ longhorn_vars.kubernetes.helm.chart.version[1:] }}'
+          reference: "{{ longhorn_vars.kubernetes.helm.repository.org }}/{{ longhorn_vars.kubernetes.helm.chart.name }}"
+          version: "{{ longhorn_vars.kubernetes.helm.chart.version[1:] }}"
         platform:
           key: https://github.com
           raw: https://raw.githubusercontent.com
         repository:
-          name: '{{ longhorn_vars.kubernetes.helm.repository.org }}/{{ longhorn_vars.kubernetes.helm.repository.name }}'
+          name: "{{ longhorn_vars.kubernetes.helm.repository.org }}/{{ longhorn_vars.kubernetes.helm.repository.name }}"
         timeout: 5m0s
       gateway:
         frontend:
           annotations:
-            cert-manager.io/cluster-issuer: '{{ externaldns_project.cloudflare.cluster.issuer }}'
-          hostname: '{{ longhorn_vars.kubernetes.frontend.gateway.subdomain }}.{{ externaldns_vars.cloudflare.host.domain }}'
+            cert-manager.io/cluster-issuer: "{{ externaldns_project.cloudflare.cluster.issuer }}"
+          hostname: "{{ longhorn_vars.kubernetes.frontend.gateway.subdomain }}.{{ externaldns_vars.cloudflare.host.domain }}"
           http_route:
-            insecure: '{{ longhorn_vars.kubernetes.frontend.gateway.service }}-http'
-            secure: '{{ longhorn_vars.kubernetes.frontend.gateway.service }}-https'
+            insecure: "{{ longhorn_vars.kubernetes.frontend.gateway.service }}-http"
+            secure: "{{ longhorn_vars.kubernetes.frontend.gateway.service }}-https"
       metrics:
         service:
           monitor:
@@ -40,12 +40,12 @@
   ansible.builtin.set_fact:
     longhorn_project:
       release:
-        file: '{{ longhorn_vars.release.version }}/{{ longhorn_vars.release.file }}'
+        file: "{{ longhorn_vars.release.version }}/{{ longhorn_vars.release.file }}"
         url: "{{
           '/'.join([longhorn_map.helm.platform.key,
-            longhorn_vars.release.repository.org,
-            longhorn_vars.release.repository.name, 'releases', 'download'])
+          longhorn_vars.release.repository.org,
+          longhorn_vars.release.repository.name, 'releases', 'download'])
           }}"
-      tag: '{{ longhorn_vars.kubernetes.helm.chart.version }}'
-      url: '{{ longhorn_map.helm.platform.key }}/{{ longhorn_map.helm.repository.name }}/releases/tag'
+      tag: "{{ longhorn_vars.kubernetes.helm.chart.version }}"
+      url: "{{ longhorn_map.helm.platform.key }}/{{ longhorn_map.helm.repository.name }}/releases/tag"
   run_once: true

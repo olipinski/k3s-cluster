@@ -24,12 +24,19 @@ etcd-expose-metrics: true
 flannel-backend: none
 kube-controller-manager-arg: bind-address={{ k3s_node.ip }}
 kube-scheduler-arg: bind-address={{ k3s_node.ip }}
+{% if k3s_vars.encryption.enabled | bool %}
+secrets-encryption: true
+{% if inventory_hostname == k3s_map.server.default_host %}
+secrets-encryption-config: {{ k3s_project.cluster.encryption_config }}
+{% endif %}
+{% endif %}
 {% endif %}
 kubelet-arg:
   {{ k3s_resources.node.kubelet.args | to_nice_yaml | indent(2) }}
 {%- if
   (k3s_resources.node.taint.agent | length > 0) or
-  (k3s_vars.cluster.controlplane.tainted is truthy and k3s_node.service | lower == 'server' and k3s_resources.node.taint.server | length > 0)
+  (k3s_vars.cluster.controlplane.tainted is truthy and k3s_node.service | lower == 'server' and k3s_resources.node.taint.server | length > 0) or
+  (k3s_resources.node.taint.arch is defined)
 %}
 node-taint:
 {% if k3s_resources.node.taint.agent | length > 0 %}
@@ -38,6 +45,7 @@ node-taint:
 {% if k3s_vars.cluster.controlplane.tainted is truthy and k3s_node.service | lower == 'server' and k3s_resources.node.taint.server | length > 0 %}
   {{ k3s_resources.node.taint.server | to_nice_yaml | indent(2) }}
 {%- endif %}
+  - "{{ k3s_resources.node.taint.arch }}"
 {% endif %}
 {% if k3s_map.server.ha is truthy and (k3s_postinstall is truthy or k3s_node.service | lower == 'agent') %}
 server: https://{{ k3s_vars.server.api.host }}:{{ k3s_vars.server.api.port }}

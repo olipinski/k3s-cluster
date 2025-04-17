@@ -1,7 +1,7 @@
 ---
 - name: Role Facts
   ansible.builtin.include_role:
-    name: '{{ role }}'
+    name: "{{ role }}"
     tasks_from: facts
   loop:
     - cert-manager
@@ -18,7 +18,7 @@
   block:
     - name: Validate project url
       ansible.builtin.uri:
-        url: '{{ victoriametrics_project.helm.chart.victoriametrics.url }}/{{ victoriametrics_project.helm.chart.victoriametrics.tag }}'
+        url: "{{ victoriametrics_project.helm.chart.victoriametrics.url }}/{{ victoriametrics_project.helm.chart.victoriametrics.tag }}"
         timeout: 5
       register: result
       delay: 1
@@ -27,7 +27,7 @@
 
     - name: Validate project dependency url
       ansible.builtin.uri:
-        url: '{{ victoriametrics_project.helm.chart.prometheus.url }}/{{ victoriametrics_project.helm.chart.prometheus.tag }}'
+        url: "{{ victoriametrics_project.helm.chart.prometheus.url }}/{{ victoriametrics_project.helm.chart.prometheus.tag }}"
         timeout: 5
       register: result
       delay: 1
@@ -38,15 +38,15 @@
       block:
         - name: Add repository
           kubernetes.core.helm_repository:
-            name: '{{ item.org }}'
-            repo_url: '{{ item.url }}/{{ item.name }}'
-          loop: '{{ victoriametrics_map.helm.repository }}'
+            name: "{{ item.org }}"
+            repo_url: "{{ item.url }}/{{ item.name }}"
+          loop: "{{ victoriametrics_map.helm.repository }}"
 
         - name: Get deployed chart info
           kubernetes.core.helm_info:
-            kubeconfig: '{{ k3s_project.cluster.kubeconfig }}'
-            name: '{{ victoriametrics_vars.kubernetes.helm.chart.victoriametrics.alias }}'
-            namespace: '{{ victoriametrics_vars.kubernetes.namespace }}'
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            name: "{{ victoriametrics_vars.kubernetes.helm.chart.victoriametrics.alias }}"
+            namespace: "{{ victoriametrics_vars.kubernetes.namespace }}"
           register: release
           delay: 1
           retries: 3
@@ -56,7 +56,7 @@
         - name: Set comparison fact
           ansible.builtin.set_fact:
             comparison:
-              chart: '{{ victoriametrics_vars.kubernetes.helm.chart.victoriametrics.version[1:] }}'
+              chart: "{{ victoriametrics_vars.kubernetes.helm.chart.victoriametrics.version[1:] }}"
               release: "{{ (release.status.chart | default('0')).split('-')[-1] }}"
 
         - name: Set credentials fact
@@ -123,17 +123,17 @@
               ansible.builtin.command:
                 cmd: bash -c "{{
                   ' '.join(['diff', '-u', '<(curl', '-s ' +
-                    '/'.join([victoriametrics_map.helm.platform.raw,
-                      victoriametrics_vars.kubernetes.helm.repository.victoriametrics.org,
-                      victoriametrics_vars.kubernetes.helm.repository.victoriametrics.name,
-                      '-'.join([victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, comparison.release]), 'charts',
-                      victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, 'values.yaml']) + ')',
+                  '/'.join([victoriametrics_map.helm.platform.raw,
+                  victoriametrics_vars.kubernetes.helm.repository.victoriametrics.org,
+                  victoriametrics_vars.kubernetes.helm.repository.victoriametrics.name,
+                  '-'.join([victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, comparison.release]), 'charts',
+                  victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, 'values.yaml']) + ')',
                   '<(curl', '-s ' +
-                    '/'.join([victoriametrics_map.helm.platform.raw,
-                      victoriametrics_vars.kubernetes.helm.repository.victoriametrics.org,
-                      victoriametrics_vars.kubernetes.helm.repository.victoriametrics.name,
-                      '-'.join([victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, comparison.chart]), 'charts',
-                      victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, 'values.yaml']) + ')'])
+                  '/'.join([victoriametrics_map.helm.platform.raw,
+                  victoriametrics_vars.kubernetes.helm.repository.victoriametrics.org,
+                  victoriametrics_vars.kubernetes.helm.repository.victoriametrics.name,
+                  '-'.join([victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, comparison.chart]), 'charts',
+                  victoriametrics_vars.kubernetes.helm.chart.victoriametrics.name, 'values.yaml']) + ')'])
                   }}"
               register: result
               delay: 1

@@ -9,15 +9,15 @@ kured_vars:
         enabled: true
         messages:
           enabled: false
-          drain: ''
-          reboot: ''
-          uncordon: ''
+          drain: ""
+          reboot: ""
+          uncordon: ""
         # -- (string) Slack notifications, see [documentation](https://kured.dev/docs/configuration/#notifications) for details
         # @default -- Set value into [all.yaml](../../inventory/cluster/group_vars/all.yaml) `credentials` collection
         notify_url:
       time:
-        start: '04:00'
-        end: '08:00'
+        start: "04:00"
+        end: "08:00"
         zone: UTC
     helm:
       chart:

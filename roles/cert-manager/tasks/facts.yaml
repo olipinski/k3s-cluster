@@ -5,16 +5,16 @@
       ca:
         cluster:
           issuer:
-            name: '{{ certmanager_vars.kubernetes.helm.chart.name }}-cluster-issuer'
+            name: "{{ certmanager_vars.kubernetes.helm.chart.name }}-cluster-issuer"
       helm:
         chart:
-          reference: '{{ certmanager_vars.kubernetes.helm.repository.org }}/{{ certmanager_vars.kubernetes.helm.chart.name }}'
+          reference: "{{ certmanager_vars.kubernetes.helm.repository.org }}/{{ certmanager_vars.kubernetes.helm.chart.name }}"
         platform:
           key: https://github.com
           raw: https://raw.githubusercontent.com
         repository:
-          name: '{{ certmanager_vars.kubernetes.helm.repository.name }}/{{ certmanager_vars.kubernetes.helm.chart.name }}'
-          url: '{{ certmanager_vars.kubernetes.helm.repository.url }}/{{ certmanager_vars.kubernetes.helm.repository.name }}'
+          name: "{{ certmanager_vars.kubernetes.helm.repository.name }}/{{ certmanager_vars.kubernetes.helm.chart.name }}"
+          url: "{{ certmanager_vars.kubernetes.helm.repository.url }}/{{ certmanager_vars.kubernetes.helm.repository.name }}"
         timeout: 5m0s
       metrics:
         service:
@@ -31,18 +31,18 @@
   ansible.builtin.set_fact:
     certmanager_project:
       release:
-        checksum: '{{ certmanager_vars.release.version }}/{{ certmanager_vars.release.checksum }}'
-        file: '{{ certmanager_vars.release.version }}/{{ certmanager_vars.release.file }}'
+        checksum: "{{ certmanager_vars.release.version }}/{{ certmanager_vars.release.checksum }}"
+        file: "{{ certmanager_vars.release.version }}/{{ certmanager_vars.release.file }}"
         url: "{{
           '/'.join([certmanager_map.helm.platform.key,
-            certmanager_vars.release.repository.org,
-            certmanager_vars.release.repository.name, 'releases', 'download'])
+          certmanager_vars.release.repository.org,
+          certmanager_vars.release.repository.name, 'releases', 'download'])
           }}"
-      tag: '{{ certmanager_vars.kubernetes.helm.chart.version }}'
-      url: '{{ certmanager_map.helm.platform.key }}/{{ certmanager_map.helm.repository.name }}/releases/tag'
+      tag: "{{ certmanager_vars.kubernetes.helm.chart.version }}"
+      url: "{{ certmanager_map.helm.platform.key }}/{{ certmanager_map.helm.repository.name }}/releases/tag"
   run_once: true
 
 - name: Set variables fact
   ansible.builtin.set_fact:
-    certmanager_vars: '{{ certmanager_vars }}'
+    certmanager_vars: "{{ certmanager_vars }}"
   run_once: true

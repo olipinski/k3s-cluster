@@ -26,10 +26,10 @@
     - name: Role Upgrade
       ansible.builtin.include_role:
         apply:
-          tags: '{{ upgrade }}'
-        name: '{{ upgrade }}'
+          tags: "{{ upgrade }}"
+        name: "{{ upgrade }}"
         tasks_from: upgrade
-      loop: '{{ global_map.tags.role }}'
+      loop: "{{ global_map.tags.role }}"
       loop_control:
         loop_var: upgrade
       tags: always

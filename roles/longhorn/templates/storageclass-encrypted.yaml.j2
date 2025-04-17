@@ -1,0 +1,13 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: longhorn-encrypted
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+parameters:
+  numberOfReplicas: "{{ longhorn_vars.kubernetes.default_settings.volume.replicas }}"
+  staleReplicaTimeout: "30"
+  fromBackup: ""
+  fsType: "ext4"
+  encrypted: "true"
+  encryption-secret: "{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}@{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}"

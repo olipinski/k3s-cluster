@@ -26,6 +26,13 @@ defaultSettings:
   orphanAutoDeletion: true
   removeSnapshotsDuringFilesystemTrim: true
   replicaAutoBalance: {{ longhorn_vars.kubernetes.default_settings.volume.replica_auto_balance }}
+  # Encryption settings
+{% if longhorn_vars.encryption.enabled %}
+  csiEncryption: {{ longhorn_vars.kubernetes.default_settings.csi_encryption | lower }}
+  csiEncryptionKMSType: {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_type }}
+  csiEncryptionKMSSecretName: {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}
+  csiEncryptionKMSSecretNamespace: {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}
+{% endif %}
 {% if k3s_vars.cluster.controlplane.tainted is truthy %}
 {% if k3s_resources.node.taint.server | length > 0 %}
   taintToleration: {{ k3s_resources.node.taint.server | join | trim }}
@@ -76,3 +83,4 @@ persistence:
 {% endif %}
   defaultDataLocality: {{ longhorn_vars.kubernetes.default_settings.data_locality }}
   migratable: true
+{% endif %}
