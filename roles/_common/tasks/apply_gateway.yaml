@@ -1,19 +1,18 @@
-# roles/common/tasks/apply_gateway.yaml
----
+# roles/_common/tasks/apply_gateway.yaml
 - name: Create gateway for {{ service_name }}
   kubernetes.core.k8s:
-    definition: "{{ lookup('template', 'roles/common/templates/gateway.j2') | from_yaml }}"
+    definition: "{{ lookup('template', 'roles/_common/templates/gateway.j2') | from_yaml }}"
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     wait: true
 
 - name: Create insecure HTTP route for {{ service_name }}
   kubernetes.core.k8s:
-    definition: "{{ lookup('template', 'roles/common/templates/http_route_insecure.j2') | from_yaml }}"
+    definition: "{{ lookup('template', 'roles/_common/templates/http_route_insecure.j2') | from_yaml }}"
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     wait: true
 
 - name: Create secure HTTP route for {{ service_name }}
   kubernetes.core.k8s:
-    definition: "{{ lookup('template', 'roles/common/templates/http_route_secure.j2') | from_yaml }}"
+    definition: "{{ lookup('template', 'roles/_common/templates/http_route_secure.j2') | from_yaml }}"
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     wait: true

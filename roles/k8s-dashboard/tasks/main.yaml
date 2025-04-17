@@ -1,0 +1,82 @@
+# roles/kubernetes-dashboard/tasks/main.yaml
+---
+- name: Role Validation
+  ansible.builtin.import_tasks:
+    file: validation.yaml
+  any_errors_fatal: true
+
+- name: Role Provisioning
+  when: inventory_hostname in k3s_map.server.hosts
+  block:
+    - name: Validate service state
+      ansible.builtin.wait_for:
+        port: "{{ k3s_vars.server.api.port }}"
+        timeout: 30
+      any_errors_fatal: true
+
+    - name: Add repository
+      kubernetes.core.helm_repository:
+        name: "{{ kubernetes_dashboard_vars.kubernetes.helm.repository.org }}"
+        repo_url: "{{ kubernetes_dashboard_map.helm.repository.url }}"
+
+    - name: Chart Setup
+      run_once: true
+      block:
+        - name: Create RBAC resources
+          kubernetes.core.k8s:
+            definition: "{{ lookup('ansible.builtin.template', 'rbac.yaml.j2') | from_yaml }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+
+        - name: Create service account token
+          kubernetes.core.k8s:
+            definition: "{{ lookup('ansible.builtin.template', 'token.yaml.j2') | from_yaml }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+
+        - name: Set chart postinstall fact
+          ansible.builtin.set_fact:
+            kubernetes_dashboard_postinstall: false
+
+        - name: Install chart
+          kubernetes.core.helm:
+            chart_ref: "{{ kubernetes_dashboard_map.helm.chart.reference }}"
+            chart_version: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.version }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            name: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.name }}"
+            namespace: "{{ kubernetes_dashboard_vars.kubernetes.namespace }}"
+            timeout: "{{ kubernetes_dashboard_map.helm.timeout }}"
+            values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
+            create_namespace: true
+            update_repo_cache: true
+            wait: true
+          register: result
+          delay: 1
+          retries: 3
+          until: result is not failed
+
+        - name: Gateway Setup
+          when: externaldns_vars.cloudflare.host.domain | lower != 'disabled'
+          include_tasks: roles/_common/tasks/apply_gateway.yaml
+          vars:
+            service_name: "{{ kubernetes_dashboard_vars.kubernetes.gateway.service }}"
+            service_namespace: "{{ kubernetes_dashboard_vars.kubernetes.namespace }}"
+            service_subdomain: "{{ kubernetes_dashboard_map.gateway.hostname | regex_replace('\\..*$', '') }}"
+            service_access: "{{ kubernetes_dashboard_vars.kubernetes.service_access | default(global_map.services.default_access) }}"
+            backend_service_name: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.name }}-kubernetes-dashboard"
+            backend_service_port: 443
+            custom_annotations: "{{ kubernetes_dashboard_map.gateway.annotations | default({}) }}"
+            route_name_insecure: "{{ kubernetes_dashboard_map.gateway.http_route.insecure }}"
+            route_name_secure: "{{ kubernetes_dashboard_map.gateway.http_route.secure }}"
+
+        - name: Get service account token
+          ansible.builtin.command:
+            cmd: kubectl -n {{ kubernetes_dashboard_vars.kubernetes.namespace }} get secret {{ kubernetes_dashboard_vars.kubernetes.service_account.name }}-token -o jsonpath='{.data.token}' | base64 -d
+          register: dashboard_token
+          changed_when: false
+
+        - name: Display dashboard access information
+          ansible.builtin.debug:
+            msg:
+              - "Kubernetes Dashboard is available at: https://{{ kubernetes_dashboard_map.gateway.hostname }}"
+              - "Access token: {{ dashboard_token.stdout }}"

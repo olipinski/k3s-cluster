@@ -1,0 +1,9 @@
+# roles/kubernetes-dashboard/templates/token.yaml.j2
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ kubernetes_dashboard_vars.kubernetes.service_account.name }}-token
+  namespace: {{ kubernetes_dashboard_vars.kubernetes.namespace }}
+  annotations:
+    kubernetes.io/service-account.name: {{ kubernetes_dashboard_vars.kubernetes.service_account.name }}
+type: kubernetes.io/service-account-token

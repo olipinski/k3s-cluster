@@ -1,0 +1,37 @@
+# roles/kubernetes-dashboard/templates/values.yaml.j2
+app:
+  ingress:
+    enabled: false
+  resources:
+    limits:
+{% if kubernetes_dashboard_vars.kubernetes.resources.limits.cpu is truthy %}
+      cpu: {{ kubernetes_dashboard_vars.kubernetes.resources.limits.cpu }}
+{% endif %}
+      memory: {{ kubernetes_dashboard_vars.kubernetes.resources.limits.memory }}
+    requests:
+      cpu: {{ kubernetes_dashboard_vars.kubernetes.resources.requests.cpu }}
+      memory: {{ kubernetes_dashboard_vars.kubernetes.resources.requests.memory }}
+  serviceAccount:
+    create: false
+    name: {{ kubernetes_dashboard_vars.kubernetes.service_account.name }}
+  extraArgs:
+    - --token-ttl=86400
+    - --enable-skip-login
+    - --enable-insecure-login=false
+
+{% if kubernetes_dashboard_postinstall is truthy and kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.enabled is truthy %}
+metrics:
+  serviceMonitor:
+    enabled: true
+{% if kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.interval is falsy %}
+    interval: {{ victoriametrics_map.service.monitor.scrape.interval }}
+{% else %}
+    interval: {{ kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.interval }}
+{% endif %}
+    namespace: {{ victoriametrics_vars.kubernetes.namespace }}
+{% if kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.timeout is falsy %}
+    scrapeTimeout: {{ victoriametrics_map.service.monitor.scrape.timeout }}
+{% else %}
+    scrapeTimeout: {{ kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.timeout }}
+{% endif %}
+{% endif %}

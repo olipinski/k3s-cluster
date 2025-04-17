@@ -1,0 +1,24 @@
+# roles/_common/tasks/helm_chart.yaml
+- name: Add repository
+  kubernetes.core.helm_repository:
+    name: "{{ helm_repo_name }}"
+    repo_url: "{{ helm_repo_url }}"
+
+- name: Install/upgrade chart
+  kubernetes.core.helm:
+    chart_ref: "{{ chart_ref }}"
+    chart_version: "{{ chart_version }}"
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    name: "{{ release_name }}"
+    namespace: "{{ namespace }}"
+    timeout: "{{ timeout | default('5m0s') }}"
+    values: "{{ values }}"
+    create_namespace: "{{ create_namespace | default(true) }}"
+    update_repo_cache: "{{ update_repo_cache | default(true) }}"
+    wait: "{{ wait | default(true) }}"
+    reset_values: "{{ reset_values | default(false) }}"
+    reuse_values: "{{ reuse_values | default(false) }}"
+  register: result
+  delay: 1
+  retries: 3
+  until: result is not failed

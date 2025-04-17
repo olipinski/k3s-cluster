@@ -1,0 +1,28 @@
+# roles/kubernetes-dashboard/tasks/postinstall.yaml
+---
+- name: Role Post-Install
+  when:
+    - inventory_hostname in k3s_map.server.hosts
+    - kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.enabled is truthy
+  run_once: true
+  block:
+    - name: Update chart postinstall fact
+      ansible.builtin.set_fact:
+        kubernetes_dashboard_postinstall: true
+
+    - name: Update chart postinstall values
+      kubernetes.core.helm:
+        chart_ref: "{{ kubernetes_dashboard_map.helm.chart.reference }}"
+        chart_version: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.version }}"
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        name: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.name }}"
+        namespace: "{{ kubernetes_dashboard_vars.kubernetes.namespace }}"
+        timeout: "{{ kubernetes_dashboard_map.helm.timeout }}"
+        values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
+        reset_values: false
+        reuse_values: true
+        wait: true
+      register: result
+      delay: 1
+      retries: 3
+      until: result is not failed

@@ -1,0 +1,32 @@
+# roles/kubernetes-dashboard/defaults/main.yaml
+---
+kubernetes_dashboard_vars:
+  kubernetes:
+    helm:
+      chart:
+        name: kubernetes-dashboard
+        version: v6.0.8
+      repository:
+        name: kubernetes-dashboard
+        org: kubernetes-dashboard
+        url: https://kubernetes.github.io/dashboard
+    namespace: kube-system
+    resources:
+      limits:
+        cpu: null
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 128Mi
+    service_account:
+      name: admin-user
+    gateway:
+      service: kubernetes-dashboard
+      subdomain: dashboard
+    metrics:
+      service:
+        monitor:
+          enabled: true
+          scrape:
+            interval: null
+            timeout: null

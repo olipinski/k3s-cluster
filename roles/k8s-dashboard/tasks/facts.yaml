@@ -1,0 +1,31 @@
+# roles/kubernetes-dashboard/tasks/facts.yaml
+---
+- name: Set map fact
+  ansible.builtin.set_fact:
+    kubernetes_dashboard_map:
+      helm:
+        chart:
+          reference: "{{ kubernetes_dashboard_vars.kubernetes.helm.repository.org }}/{{ kubernetes_dashboard_vars.kubernetes.helm.chart.name }}"
+          version: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.version[1:] }}"
+        platform:
+          key: https://github.com
+          raw: https://raw.githubusercontent.com
+        repository:
+          name: "{{ kubernetes_dashboard_vars.kubernetes.helm.repository.org }}/{{ kubernetes_dashboard_vars.kubernetes.helm.repository.name }}"
+          url: "{{ kubernetes_dashboard_vars.kubernetes.helm.repository.url }}"
+        timeout: 5m0s
+      gateway:
+        annotations:
+          cert-manager.io/cluster-issuer: "{{ externaldns_project.cloudflare.cluster.issuer }}"
+        hostname: "{{ kubernetes_dashboard_vars.kubernetes.gateway.subdomain }}.{{ externaldns_vars.cloudflare.host.domain }}"
+        http_route:
+          insecure: "{{ kubernetes_dashboard_vars.kubernetes.gateway.service }}-http"
+          secure: "{{ kubernetes_dashboard_vars.kubernetes.gateway.service }}-https"
+  run_once: true
+
+- name: Set project fact
+  ansible.builtin.set_fact:
+    kubernetes_dashboard_project:
+      tag: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.name }}-{{ kubernetes_dashboard_map.helm.chart.version }}"
+      url: "{{ kubernetes_dashboard_map.helm.platform.key }}/{{ kubernetes_dashboard_map.helm.repository.name }}/releases/tag"
+  run_once: true

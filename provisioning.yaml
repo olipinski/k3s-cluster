@@ -75,4 +75,5 @@
     - metrics-server
     - victoria-logs
     - victoria-metrics
+    - k8s-dashboard
   tags: charts
