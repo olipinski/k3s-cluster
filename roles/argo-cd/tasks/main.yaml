@@ -33,7 +33,7 @@
 
     - name: Install binary
       ansible.builtin.get_url:
-        url: "{{ argocd_project.release.url }}/{{ argocd_project.release.file | replace('arm64', ansible_architecture) }}"
+        url: "{{ argocd_project.release.url }}/{{ argocd_project.release.file }}"
         checksum: sha256:{{ sha256_checksum }}
         dest: "{{ k3s_map.node.directory.bin }}/argocd"
         owner: root

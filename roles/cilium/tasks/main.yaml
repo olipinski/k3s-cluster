@@ -30,7 +30,7 @@
 
     - name: Install binary
       ansible.builtin.unarchive:
-        src: "{{ cilium_project.release.cli.url }}/{{ cilium_project.release.cli.file | replace('arm64', ansible_architecture) }}"
+        src: "{{ cilium_project.release.cli.url }}/{{ cilium_project.release.cli.file }}"
         dest: "{{ k3s_map.node.directory.bin }}"
         owner: root
         group: root
