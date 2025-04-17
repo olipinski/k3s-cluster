@@ -77,21 +77,14 @@
           when:
             - argocd_vars.kubernetes.configs.params.server.insecure is truthy
             - externaldns_vars.cloudflare.host.domain | lower != 'disabled'
-          block:
-            - name: Create gateway
-              kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'gateway.j2') | from_yaml }}"
-                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-                wait: true
-
-            - name: Create insecure http route
-              kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'http_route_insecure.j2') | from_yaml }}"
-                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-                wait: true
-
-            - name: Create secure http route
-              kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'http_route_secure.j2') | from_yaml }}"
-                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-                wait: true
+          include_tasks: roles/common/tasks/apply_gateway.yaml
+                -   vars:
+            service_name: "{{ argocd_vars.kubernetes.server.gateway.service }}"
+            service_namespace: "{{ argocd_vars.kubernetes.namespace }}"
+            service_subdomain: "{{ argocd_map.gateway.server.hostname | regex_replace('\\..*$', '') }}"
+            service_access: "{{ argocd_vars.kubernetes.service_access | default(global_map.services.default_access) }}"
+            backend_service_name: "{{ argocd_vars.kubernetes.server.gateway.service }}"
+            backend_service_port: 443
+            custom_annotations: "{{ argocd_map.gateway.server.annotations | default({}) }}"
+            route_name_insecure: "{{ argocd_map.gateway.server.http_route.insecure }}"
+            route_name_secure: "{{ argocd_map.gateway.server.http_route.secure }}"

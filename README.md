@@ -106,15 +106,71 @@ kubectl get pods -A
 - **Longhorn**: https://longhorn.[your-domain]
 - **Hubble**: https://hubble.[your-domain]
 
+## ArgoCD Usage
+
+ArgoCD is deployed at https://argocd.[your-domain] with the following credentials:
+- Username: admin
+- Password: Set in your encrypted global variables
+
+### Adding Applications
+
+1. **Using the CLI**:
+   ```bash
+   # Login to ArgoCD
+   argocd login argocd.[your-domain] --username admin --password <your-password> --insecure
+
+   # Add a repository
+   argocd repo add https://github.com/your-org/your-repo --name my-repo
+
+   # Create an application
+   argocd app create my-app --repo my-repo --path kubernetes/ --dest-server https://kubernetes.default.svc --dest-namespace default
+
+2. Using the Web UI:
+
+- Navigate to Settings → Repositories → Connect Repo
+- Go to Applications → New Application
+- Fill in the application details, repository URL, and path
+- Set the destination cluster and namespace
+- Click "Create"
+
+### Syncing Applications
+```bash
+
+# Sync an application
+argocd app sync my-app
+
+# Set up auto-sync
+argocd app set my-app --sync-policy automated
+
+```
+
 ## Security Features
+
+### Encryption Setup
 
 ### Kubernetes Secrets Encryption
 
-The cluster uses AES-CBC encryption for Kubernetes secrets with automatic key rotation.
+The cluster uses AES-CBC encryption for Kubernetes secrets with automatic key rotation:
 
-### Volume Encryption
+1. **Encryption Setup**:
+   - Located in `k3s_vars.encryption.enabled: true` in the global vars
+   - Managed by the ansible cron job that calls `/usr/local/bin/k3s-key-rotation.sh`
+   - Rotates keys every 30 days automatically
 
-Longhorn volumes can be encrypted using the `longhorn-encrypted` storage class, which uses LUKS encryption.
+2. **Key Management**:
+   - Primary encryption key stored in Ansible Vault: `global_map.k3s.encryption.key`
+   - To update the key: `ansible-vault edit inventory/cluster/group_vars/all.yaml`
+   - After updating, run `ansible-playbook upgrade.yaml --tags k3s` to apply
+
+3. **Verifying Encryption**:
+   ```bash
+   # Check if a secret is encrypted
+   kubectl get secret mysecret -o yaml | grep -i aescbc
+
+### Longhorn Volume Encryption:
+
+- Use the longhorn-encrypted StorageClass for encrypted volumes
+- Rotation managed by the scheduled job in the longhorn namespace
 
 ## Architecture Support
 

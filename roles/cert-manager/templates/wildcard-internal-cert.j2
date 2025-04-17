@@ -1,0 +1,15 @@
+# roles/cert-manager/templates/wildcard-internal-cert.j2
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-internal-cert
+  namespace: {{ certmanager_vars.kubernetes.namespace }}
+spec:
+  secretName: {{ global_map.services.wildcard_cert.name }}
+  issuerRef:
+    name: {{ certmanager_map.ca.cluster.issuer.name }}
+    kind: ClusterIssuer
+  commonName: "*.{{ global_map.domains.internal }}"
+  dnsNames:
+  - "*.{{ global_map.domains.internal }}"
+  - "{{ global_map.domains.internal }}"

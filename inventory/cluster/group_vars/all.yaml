@@ -7,6 +7,14 @@ ansible_password: !vault |
 ansible_become_password: "{{ ansible_password }}"
 # Global configuration and credentials
 global_map:
+  domains:
+    external: mydomain.com
+    internal: internal.mydomain.com
+  services:
+    default_access: "internal"
+    wildcard_cert:
+      enabled: true
+      name: wildcard-internal-tls
   credentials:
     argocd:
       server:

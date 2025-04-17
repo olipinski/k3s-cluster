@@ -84,3 +84,10 @@
             definition: "{{ lookup('ansible.builtin.template', 'cluster_issuer.j2') | from_yaml }}"
             kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
             wait: true
+
+        - name: Create wildcard certificate for internal domain
+          kubernetes.core.k8s:
+            definition: "{{ lookup('ansible.builtin.template', 'wildcard-internal-cert.j2') | from_yaml }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+          when: global_map.services.wildcard_cert.enabled | default(true)

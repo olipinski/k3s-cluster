@@ -1,0 +1,48 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  annotations:
+    {% if service_access|default(global_map.services.default_access) == "internal" %}
+    external-dns.alpha.kubernetes.io/exclude: "true"
+    {% else %}
+    cert-manager.io/cluster-issuer: "{{ externaldns_project.cloudflare.cluster.issuer }}"
+    {% endif %}
+    {% if custom_annotations is defined %}
+    {% for key, value in custom_annotations.items() %}
+    {{ key | indent(4) }}: {{ value }}
+    {% endfor %}
+    {% endif %}
+  name: {{ service_name }}
+  namespace: {{ service_namespace }}
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - allowedRoutes:
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+        namespaces:
+          from: Same
+      hostname: {{ service_subdomain }}.{% if service_access|default(global_map.services.default_access) == "internal" %}{{ global_map.domains.internal }}{% else %}{{ global_map.domains.external }}{% endif %}
+      name: http
+      port: 80
+      protocol: HTTP
+    - allowedRoutes:
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+        namespaces:
+          from: Same
+      hostname: {{ service_subdomain }}.{% if service_access|default(global_map.services.default_access) == "internal" %}{{ global_map.domains.internal }}{% else %}{{ global_map.domains.external }}{% endif %}
+      name: https
+      port: 443
+      protocol: HTTPS
+      tls:
+        certificateRefs:
+          - kind: Secret
+            {% if service_access|default(global_map.services.default_access) == "internal" %}
+            name: {{ global_map.services.wildcard_cert.name }}
+            {% else %}
+            name: {{ externaldns_vars.cloudflare.prefix }}-{{ service_name }}
+            {% endif %}
+        mode: Terminate

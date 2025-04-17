@@ -164,29 +164,43 @@
             wait: true
           register: gateway
 
-        - name: Gateway Setup
+        - name: Gateway Cleanup
           when:
             - cilium_vars.kubernetes.hubble.ui.enabled is falsy
             - externaldns_vars.cloudflare.host.domain | lower != 'disabled'
-            - gateway.resources is iterable and gateway.resources | length > 0
           block:
             - name: Delete gateway
               kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'gateway.j2') | from_yaml }}"
+                definition:
+                  apiVersion: gateway.networking.k8s.io/v1
+                  kind: Gateway
+                  metadata:
+                    name: "{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}"
+                    namespace: "{{ cilium_vars.kubernetes.namespace }}"
                 kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
                 state: absent
                 wait: true
 
             - name: Delete insecure http route
               kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'http_route_insecure.j2') | from_yaml }}"
+                definition:
+                  apiVersion: gateway.networking.k8s.io/v1
+                  kind: HTTPRoute
+                  metadata:
+                    name: "{{ cilium_map.gateway.hubble.ui.http_route.insecure }}"
+                    namespace: "{{ cilium_vars.kubernetes.namespace }}"
                 kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
                 state: absent
                 wait: true
 
             - name: Delete secure http route
               kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'http_route_secure.j2') | from_yaml }}"
+                definition:
+                  apiVersion: gateway.networking.k8s.io/v1
+                  kind: HTTPRoute
+                  metadata:
+                    name: "{{ cilium_map.gateway.hubble.ui.http_route.secure }}"
+                    namespace: "{{ cilium_vars.kubernetes.namespace }}"
                 kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
                 state: absent
                 wait: true
@@ -216,21 +230,14 @@
           when:
             - cilium_vars.kubernetes.hubble.ui.enabled is truthy
             - externaldns_vars.cloudflare.host.domain | lower != 'disabled'
-          block:
-            - name: Create gateway
-              kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'gateway.j2') | from_yaml }}"
-                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-                wait: true
-
-            - name: Create insecure http route
-              kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'http_route_insecure.j2') | from_yaml }}"
-                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-                wait: true
-
-            - name: Create secure http route
-              kubernetes.core.k8s:
-                definition: "{{ lookup('ansible.builtin.template', 'http_route_secure.j2') | from_yaml }}"
-                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-                wait: true
+          include_tasks: roles/common/tasks/apply_gateway.yaml
+          vars:
+            service_name: "{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}"
+            service_namespace: "{{ cilium_vars.kubernetes.namespace }}"
+            service_subdomain: "{{ cilium_map.gateway.hubble.ui.hostname | regex_replace('\\..*$', '') }}"
+            service_access: "{{ cilium_vars.kubernetes.service_access | default(global_map.services.default_access) }}"
+            backend_service_name: "{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}"
+            backend_service_port: 80
+            custom_annotations: "{{ cilium_map.gateway.hubble.ui.annotations | default({}) }}"
+            route_name_insecure: "{{ cilium_map.gateway.hubble.ui.http_route.insecure }}"
+            route_name_secure: "{{ cilium_map.gateway.hubble.ui.http_route.secure }}"
