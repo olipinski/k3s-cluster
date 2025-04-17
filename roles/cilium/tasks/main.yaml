@@ -230,7 +230,7 @@
           when:
             - cilium_vars.kubernetes.hubble.ui.enabled is truthy
             - externaldns_vars.cloudflare.host.domain | lower != 'disabled'
-          include_tasks: roles/common/tasks/apply_gateway.yaml
+          ansible.builtin.include_tasks: roles/common/tasks/apply_gateway.yaml
           vars:
             service_name: "{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}"
             service_namespace: "{{ cilium_vars.kubernetes.namespace }}"

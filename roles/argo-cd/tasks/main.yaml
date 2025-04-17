@@ -77,8 +77,8 @@
           when:
             - argocd_vars.kubernetes.configs.params.server.insecure is truthy
             - externaldns_vars.cloudflare.host.domain | lower != 'disabled'
-          include_tasks: roles/common/tasks/apply_gateway.yaml
-                -   vars:
+          ansible.builtin.include_tasks: roles/common/tasks/apply_gateway.yaml
+          vars:
             service_name: "{{ argocd_vars.kubernetes.server.gateway.service }}"
             service_namespace: "{{ argocd_vars.kubernetes.namespace }}"
             service_subdomain: "{{ argocd_map.gateway.server.hostname | regex_replace('\\..*$', '') }}"

@@ -71,21 +71,21 @@
             - name: Delete gateway
               kubernetes.core.k8s:
                 definition: "{{ lookup('ansible.builtin.template', 'gateway.j2') | from_yaml }}"
-                kubeconfig: '{{ k3s_project.cluster.kubeconfig }}'
+                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
                 state: absent
                 wait: true
 
             - name: Delete insecure http route
               kubernetes.core.k8s:
                 definition: "{{ lookup('ansible.builtin.template', 'http_route_insecure.j2') | from_yaml }}"
-                kubeconfig: '{{ k3s_project.cluster.kubeconfig }}'
+                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
                 state: absent
                 wait: true
 
             - name: Delete secure http route
               kubernetes.core.k8s:
                 definition: "{{ lookup('ansible.builtin.template', 'http_route_secure.j2') | from_yaml }}"
-                kubeconfig: '{{ k3s_project.cluster.kubeconfig }}'
+                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
                 state: absent
                 wait: true
 
@@ -128,7 +128,7 @@
           when:
             - longhorn_vars.kubernetes.frontend.ingress.enabled is falsy
             - externaldns_vars.cloudflare.host.domain | lower != 'disabled'
-          include_tasks: roles/common/tasks/apply_gateway.yaml
+          ansible.builtin.include_tasks: roles/common/tasks/apply_gateway.yaml
           vars:
             service_name: "{{ longhorn_vars.kubernetes.frontend.gateway.service }}"
             service_namespace: "{{ longhorn_vars.kubernetes.namespace }}"

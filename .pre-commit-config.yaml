@@ -22,8 +22,3 @@ repos:
     hooks:
       - id: prettier
         args: ["--tab-width=2"]
-  - repo: https://github.com/olipinski/detect-exif
-    rev: v0.1.0
-    hooks:
-      - id: detect-exif
-        args: ["--remove", "--quiet"]

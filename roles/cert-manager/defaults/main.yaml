@@ -40,7 +40,6 @@ certmanager_vars:
           memory: 128Mi
   release:
     checksum: checksums.txt
-    details
     file: cmctl_linux_{{ ansible_architecture }}
     repository:
       name: cmctl
