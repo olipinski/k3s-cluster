@@ -66,6 +66,7 @@ ansible-playbook -i inventory/cluster/hosts.yaml provisioning.yaml --tags kubern
 ```
 
 This will:
+
 - Deploy K3s on all nodes with proper architecture tainting
 - Set up encryption for Kubernetes secrets
 - Configure the control plane and worker nodes
@@ -79,6 +80,7 @@ ansible-playbook -i inventory/cluster/hosts.yaml provisioning.yaml --tags charts
 ```
 
 This will deploy:
+
 - **Networking**: Cilium for CNI and service mesh
 - **Storage**: Longhorn with encryption support
 - **Certificate Management**: cert-manager

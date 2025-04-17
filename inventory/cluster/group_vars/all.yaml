@@ -1,6 +1,6 @@
 ---
 ansible_user: admin
-# -- Encrypt value with ansible-vault
+
 ansible_password: !vault |
   $ANSIBLE_VAULT;1.1;AES256
   [encrypted-password-here]
