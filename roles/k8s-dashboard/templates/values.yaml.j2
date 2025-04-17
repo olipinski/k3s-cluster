@@ -1,4 +1,3 @@
-# roles/kubernetes-dashboard/templates/values.yaml.j2
 app:
   ingress:
     enabled: false
@@ -19,19 +18,19 @@ app:
     - --enable-skip-login
     - --enable-insecure-login=false
 
-{% if kubernetes_dashboard_postinstall is truthy and kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.enabled is truthy %}
+{% if kubernetes_dashboard_postinstall is truthy and kubernetes_dashboard_map.metrics.service.monitor.enabled is truthy %}
 metrics:
   serviceMonitor:
     enabled: true
-{% if kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.interval is falsy %}
+{% if kubernetes_dashboard_map.metrics.service.monitor.scrape.interval is falsy %}
     interval: {{ victoriametrics_map.service.monitor.scrape.interval }}
 {% else %}
-    interval: {{ kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.interval }}
+    interval: {{ kubernetes_dashboard_map.metrics.service.monitor.scrape.interval }}
 {% endif %}
     namespace: {{ victoriametrics_vars.kubernetes.namespace }}
-{% if kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.timeout is falsy %}
+{% if kubernetes_dashboard_map.metrics.service.monitor.scrape.timeout is falsy %}
     scrapeTimeout: {{ victoriametrics_map.service.monitor.scrape.timeout }}
 {% else %}
-    scrapeTimeout: {{ kubernetes_dashboard_vars.kubernetes.metrics.service.monitor.scrape.timeout }}
+    scrapeTimeout: {{ kubernetes_dashboard_map.metrics.service.monitor.scrape.timeout }}
 {% endif %}
 {% endif %}

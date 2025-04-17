@@ -1,5 +1,16 @@
-# roles/kubernetes-dashboard/tasks/main.yaml
 ---
+- name: Role Facts
+  ansible.builtin.include_role:
+    name: "{{ role }}"
+    tasks_from: facts
+  loop:
+    - external-dns
+    - k3s
+    - victoria-metrics
+    - kubernetes-dashboard
+  loop_control:
+    loop_var: role
+
 - name: Role Validation
   ansible.builtin.import_tasks:
     file: validation.yaml
@@ -13,11 +24,6 @@
         port: "{{ k3s_vars.server.api.port }}"
         timeout: 30
       any_errors_fatal: true
-
-    - name: Add repository
-      kubernetes.core.helm_repository:
-        name: "{{ kubernetes_dashboard_vars.kubernetes.helm.repository.org }}"
-        repo_url: "{{ kubernetes_dashboard_map.helm.repository.url }}"
 
     - name: Chart Setup
       run_once: true
@@ -38,24 +44,9 @@
           ansible.builtin.set_fact:
             kubernetes_dashboard_postinstall: false
 
-        - name: Install chart
-          kubernetes.core.helm:
-            chart_ref: "{{ kubernetes_dashboard_map.helm.chart.reference }}"
-            chart_version: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.version }}"
-            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-            name: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.name }}"
-            namespace: "{{ kubernetes_dashboard_vars.kubernetes.namespace }}"
-            timeout: "{{ kubernetes_dashboard_map.helm.timeout }}"
-            values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
-            create_namespace: true
-            update_repo_cache: true
-            wait: true
-          register: result
-          delay: 1
-          retries: 3
-          until: result is not failed
+        - name: Install Kubernetes Dashboard chart
 
-        - name: Gateway Setup
+        - name: Set up Gateway for Kubernetes Dashboard
           when: externaldns_vars.cloudflare.host.domain | lower != 'disabled'
           include_tasks: roles/_common/tasks/apply_gateway.yaml
           vars:

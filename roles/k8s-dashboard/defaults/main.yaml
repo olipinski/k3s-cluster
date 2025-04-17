@@ -1,5 +1,3 @@
-# roles/kubernetes-dashboard/defaults/main.yaml
----
 kubernetes_dashboard_vars:
   kubernetes:
     helm:

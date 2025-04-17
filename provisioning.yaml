@@ -62,6 +62,7 @@
         - longhorn
         - metrics-server
         - victoria-logs
+        - k8s-dashboard
       loop_control:
         loop_var: postinstall
   roles:

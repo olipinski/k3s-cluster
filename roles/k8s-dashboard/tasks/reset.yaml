@@ -1,0 +1,13 @@
+- name: Role Facts
+  ansible.builtin.import_role:
+    name: k3s
+    tasks_from: facts
+
+- name: Role Reset
+  when: inventory_hostname in k3s_map.server.hosts
+  block:
+    # Use the common reset task
+    - name: Remove Kubernetes Dashboard component
+      include_tasks: roles/_common/tasks/reset.yaml
+      vars:
+        helm_repo_name: "{{ kubernetes_dashboard_vars.kubernetes.helm.repository.org }}"

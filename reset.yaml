@@ -36,6 +36,7 @@
         - victoria-logs
         - victoria-metrics
         - helm
+        - k8s-dashboard
       loop_control:
         loop_var: reset
       tags: always
