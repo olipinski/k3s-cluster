@@ -3,6 +3,7 @@
 A comprehensive guide for deploying a secure, heterogeneous Kubernetes cluster using K3s and Ansible.
 
 ## Table of Contents
+
 - [Introduction](#introduction)
 - [Prerequisites](#prerequisites)
 - [Cluster Architecture](#cluster-architecture)
@@ -93,6 +94,7 @@ ansible-playbook -i inventory/cluster/hosts.yaml provisioning.yaml --tags kubern
 ```
 
 This will:
+
 - Deploy K3s on all nodes with proper architecture tainting
 - Set up encryption for Kubernetes secrets
 - Configure the control plane and worker nodes
@@ -106,6 +108,7 @@ ansible-playbook -i inventory/cluster/hosts.yaml provisioning.yaml --tags charts
 ```
 
 This will deploy:
+
 - **Networking**: Cilium for CNI and service mesh
 - **Storage**: Longhorn with encryption support
 - **Certificate Management**: cert-manager
@@ -143,11 +146,13 @@ The Kubernetes Dashboard provides a web-based UI for managing your cluster.
 #### Accessing the Dashboard
 
 1. Deploy the cluster with the `charts` tag:
+
    ```bash
    ansible-playbook -i inventory/cluster/hosts.yaml provisioning.yaml --tags charts
    ```
 
 2. Get the access token:
+
    ```bash
    kubectl -n kube-system get secret admin-user-token -o jsonpath='{.data.token}' | base64 -d
    ```
@@ -168,6 +173,7 @@ ArgoCD provides GitOps-based continuous delivery for your applications.
 #### Authentication
 
 ArgoCD is deployed at https://argocd.[your-domain] with the following credentials:
+
 - Username: admin
 - Password: Set in your encrypted global variables
 
@@ -191,6 +197,7 @@ argocd app create my-app \
 ```
 
 **Using the Web UI**:
+
 1. Navigate to Settings → Repositories → Connect Repo
 2. Go to Applications → New Application
 3. Fill in the application details, repository URL, and path
@@ -214,11 +221,13 @@ argocd app set my-app --sync-policy automated
 The cluster uses AES-CBC encryption for Kubernetes secrets with automatic key rotation:
 
 1. **Encryption Setup**:
+
    - Enabled with `k3s_vars.encryption.enabled: true` in the global vars
    - Managed by the ansible cron job that calls `/usr/local/bin/k3s-key-rotation.sh`
    - Rotates keys every 30 days automatically
 
 2. **Key Management**:
+
    - Primary encryption key stored in Ansible Vault: `global_map.k3s.encryption.key`
    - To update the key: `ansible-vault edit inventory/cluster/group_vars/all.yaml`
    - After updating, run `ansible-playbook upgrade.yaml --tags k3s` to apply
