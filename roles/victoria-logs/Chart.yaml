@@ -1,5 +1,0 @@
-apiVersion: v2
-name: victoria-logs-single
-description: Documentation generator for victoria-logs Ansible role
-home: https://github.com/VictoriaMetrics/helm-charts
-version: 0.9.4

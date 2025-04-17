@@ -1,44 +1,29 @@
----
 repos:
-  - repo: https://github.com/axivo/k3s-cluster
-    rev: v1.0.0
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
     hooks:
-      - id: argo-cd
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
         args:
-          - --chart-search-root=./roles/argo-cd
-      - id: cert-manager
-        args:
-          - --chart-search-root=./roles/cert-manager
-      - id: cilium
-        args:
-          - --chart-search-root=./roles/cilium
-      - id: cluster
-        args:
-          - --chart-search-root=./roles/cluster
-      - id: coredns
-        args:
-          - --chart-search-root=./roles/coredns
-      - id: external-dns
-        args:
-          - --chart-search-root=./roles/external-dns
-      - id: helm
-        args:
-          - --chart-search-root=./roles/helm
-      - id: k3s
-        args:
-          - --chart-search-root=./roles/k3s
-      - id: kured
-        args:
-          - --chart-search-root=./roles/kured
-      - id: longhorn
-        args:
-          - --chart-search-root=./roles/longhorn
-      - id: metrics-server
-        args:
-          - --chart-search-root=./roles/metrics-server
-      - id: victoria-logs-single
-        args:
-          - --chart-search-root=./roles/victoria-logs
-      - id: victoria-metrics-k8s-stack
-        args:
-          - --chart-search-root=./roles/victoria-metrics
+          - "--skip=*.ipynb"
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        args: ["--tab-width=2"]
+  - repo: https://github.com/olipinski/detect-exif
+    rev: v0.1.0
+    hooks:
+      - id: detect-exif
+        args: ["--remove", "--quiet"]
