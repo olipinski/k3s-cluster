@@ -50,7 +50,7 @@
   pre_tasks:
     - name: Initialize Deployed Components List
       ansible.builtin.set_fact:
-        deployed_components: ["k3s", "helm"]  # These are deployed in the previous play
+        deployed_components: ["k3s", "helm"] # These are deployed in the previous play
 
   tasks:
     - name: Deploy Components in Dependency Order

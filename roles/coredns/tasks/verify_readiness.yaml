@@ -21,9 +21,9 @@
         namespace: default
       spec:
         containers:
-        - name: dns-test
-          image: busybox:stable
-          command: ["sleep", "3"]
+          - name: dns-test
+            image: busybox:stable
+            command: ["sleep", "3"]
   register: test_pod
 
 - name: Wait For Test Pod To Complete
