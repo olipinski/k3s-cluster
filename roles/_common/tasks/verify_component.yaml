@@ -1,0 +1,77 @@
+---
+# Generic component verification for pods
+- name: Verify {{ component_name }} Pods Are Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    namespace: "{{ component_namespace }}"
+    label_selectors:
+      - "{{ component_label }}={{ component_value }}"
+  register: component_pods
+  until: >
+    component_pods.resources is defined and
+    component_pods.resources | length > 0 and
+    (component_pods.resources | map(attribute='status.phase') |
+    select('equalto', 'Running') | list | length) ==
+    (component_pods.resources | length) and
+    (component_pods.resources | map(attribute='status.containerStatuses') | flatten |
+    map(attribute='ready') | select('==', true) | list | length) ==
+    (component_pods.resources | map(attribute='status.containerStatuses') | flatten | length)
+  retries: "{{ component_retries | default(component_verification.default.retries) }}"
+  delay: "{{ component_delay | default(component_verification.default.delay) }}"
+  when: component_type == 'pod'
+
+# Generic component verification for deployments
+- name: Verify {{ component_name }} Deployment Is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Deployment
+    namespace: "{{ component_namespace }}"
+    name: "{{ component_value }}"
+  register: component_deployment
+  until: >
+    component_deployment.resources is defined and
+    component_deployment.resources | length > 0 and
+    (component_deployment.resources[0].status.availableReplicas | default(0)) ==
+    (component_deployment.resources[0].status.replicas | default(0)) and
+    (component_deployment.resources[0].status.readyReplicas | default(0)) ==
+    (component_deployment.resources[0].status.replicas | default(0))
+  retries: "{{ component_retries | default(component_verification.default.retries) }}"
+  delay: "{{ component_delay | default(component_verification.default.delay) }}"
+  when: component_type == 'deployment'
+
+# Generic component verification for statefulsets
+- name: Verify {{ component_name }} StatefulSet Is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: StatefulSet
+    namespace: "{{ component_namespace }}"
+    name: "{{ component_value }}"
+  register: component_statefulset
+  until: >
+    component_statefulset.resources is defined and
+    component_statefulset.resources | length > 0 and
+    (component_statefulset.resources[0].status.readyReplicas | default(0)) ==
+    (component_statefulset.resources[0].status.replicas | default(0))
+  retries: "{{ component_retries | default(component_verification.default.retries) }}"
+  delay: "{{ component_delay | default(component_verification.default.delay) }}"
+  when: component_type == 'statefulset'
+
+# Generic component verification for CRDs/custom resources
+- name: Verify {{ component_name }} Custom Resource Is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    api_version: "{{ component_api_version }}"
+    kind: "{{ component_kind }}"
+    name: "{{ component_value }}"
+    namespace: "{{ component_namespace | default(omit) }}"
+  register: component_cr
+  until: >
+    component_cr.resources is defined and
+    component_cr.resources | length > 0 and
+    (component_cr.resources[0].status.conditions | default([]) |
+    selectattr('type', 'equalto', '{{ component_condition_type }}') |
+    selectattr('status', 'equalto', '{{ component_condition_status }}') | list | length) > 0
+  retries: "{{ component_retries | default(component_verification.default.retries) }}"
+  delay: "{{ component_delay | default(component_verification.default.delay) }}"
+  when: component_type == 'custom_resource'

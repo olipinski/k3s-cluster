@@ -1,0 +1,38 @@
+---
+# Verify Metrics Server Deployment is ready
+- name: Verify Metrics Server Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Metrics Server"
+    component_namespace: "{{ metricsserver_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ metricsserver_vars.kubernetes.helm.chart.name }}"
+
+# Verify API Service is available
+- name: Verify Metrics API Service Is Available
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    api_version: apiregistration.k8s.io/v1
+    kind: APIService
+    name: v1beta1.metrics.k8s.io
+  register: metrics_api
+  until: >
+    metrics_api.resources is defined and
+    metrics_api.resources | length > 0 and
+    (metrics_api.resources[0].status.conditions | default([]) |
+    selectattr('type', 'equalto', 'Available') |
+    selectattr('status', 'equalto', 'True') | list | length) > 0
+  retries: "{{ component_verification.default.retries }}"
+  delay: "{{ component_verification.default.delay }}"
+
+# Try to use the metrics API to verify it's actually working
+- name: Verify Metrics API Is Functioning
+  ansible.builtin.command:
+    cmd: kubectl get --raw /apis/metrics.k8s.io/v1beta1/nodes
+    environment:
+      KUBECONFIG: "{{ k3s_project.cluster.kubeconfig }}"
+  register: metrics_output
+  until: metrics_output.rc == 0
+  retries: 10
+  delay: 5
+  changed_when: false

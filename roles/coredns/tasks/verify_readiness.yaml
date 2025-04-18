@@ -1,0 +1,50 @@
+---
+# Verify CoreDNS Deployment is ready
+- name: Verify CoreDNS Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "CoreDNS"
+    component_namespace: "{{ coredns_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ coredns_vars.kubernetes.helm.chart.name }}"
+
+# Verify DNS resolution is working
+- name: Verify DNS Resolution Is Working
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: dns-test
+        namespace: default
+      spec:
+        containers:
+        - name: dns-test
+          image: busybox:stable
+          command: ["sleep", "3"]
+  register: test_pod
+
+- name: Wait For Test Pod To Complete
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    name: dns-test
+    namespace: default
+  register: dns_test
+  until: >
+    dns_test.resources is defined and
+    dns_test.resources | length > 0 and
+    dns_test.resources[0].status.phase in ['Succeeded', 'Failed']
+  retries: 20
+  delay: 5
+
+- name: Clean Up Test Pod
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    state: absent
+    api_version: v1
+    kind: Pod
+    name: dns-test
+    namespace: default

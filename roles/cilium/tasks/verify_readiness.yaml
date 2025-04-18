@@ -1,0 +1,30 @@
+---
+# Verify Cilium DaemonSet is ready
+- name: Verify Cilium DaemonSet Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Cilium"
+    component_namespace: "{{ cilium_vars.kubernetes.namespace }}"
+    component_type: "pod"
+    component_label: "k8s-app"
+    component_value: "cilium"
+
+# Verify Cilium's GatewayClass is ready
+- name: Verify Cilium GatewayClass Is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    api_version: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    name: cilium
+  register: gateway_class
+  until: >
+    gateway_class.resources is defined and
+    gateway_class.resources | length > 0 and
+    (gateway_class.resources[0].status.conditions | default([]) |
+    selectattr('type', 'equalto', 'Accepted') |
+    selectattr('status', 'equalto', 'True') | list | length) > 0
+  retries: "{{ component_verification.default.retries }}"
+  delay: "{{ component_verification.default.delay }}"
+  when:
+    - cilium_vars.kubernetes.gatewayAPI is defined
+    - cilium_vars.kubernetes.gatewayAPI.enabled | default(false)

@@ -1,0 +1,9 @@
+---
+# Verify Victoria Logs Server Deployment
+- name: Verify Victoria Logs Server Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Victoria Logs"
+    component_namespace: "{{ victorialogs_vars.kubernetes.namespace }}"
+    component_type: "statefulset"
+    component_value: "{{ victorialogs_vars.kubernetes.helm.chart.alias }}-victoria-logs-single-server"

@@ -1,0 +1,68 @@
+---
+# Verify Longhorn manager deployment is ready
+- name: Verify Longhorn Manager Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Longhorn Manager"
+    component_namespace: "{{ longhorn_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "longhorn-driver-deployer"
+    component_retries: "{{ component_verification.longhorn.retries }}"
+    component_delay: "{{ component_verification.longhorn.delay }}"
+
+# Verify Longhorn StorageClass exists and is ready to use
+- name: Verify Longhorn StorageClass Exists
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: StorageClass
+    name: "{{ longhorn_vars.kubernetes.storage_classes[0].name }}"
+  register: storage_class
+  until: >
+    storage_class.resources is defined and
+    storage_class.resources | length > 0
+  retries: "{{ component_verification.longhorn.retries }}"
+  delay: "{{ component_verification.longhorn.delay }}"
+
+# Test storage provisioning (create and then delete a test PVC)
+- name: Test Longhorn Storage Provisioning
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: longhorn-test-pvc
+        namespace: default
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Mi
+        storageClassName: "{{ longhorn_vars.kubernetes.storage_classes[0].name }}"
+  register: test_pvc
+
+- name: Wait For PVC To Be Bound
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    api_version: v1
+    kind: PersistentVolumeClaim
+    name: longhorn-test-pvc
+    namespace: default
+  register: pvc_status
+  until: >
+    pvc_status.resources is defined and
+    pvc_status.resources | length > 0 and
+    pvc_status.resources[0].status.phase == 'Bound'
+  retries: "{{ component_verification.longhorn.retries }}"
+  delay: "{{ component_verification.longhorn.delay }}"
+
+- name: Clean Up Test PVC
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    state: absent
+    api_version: v1
+    kind: PersistentVolumeClaim
+    name: longhorn-test-pvc
+    namespace: default

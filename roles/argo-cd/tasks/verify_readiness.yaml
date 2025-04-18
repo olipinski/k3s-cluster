@@ -1,0 +1,30 @@
+---
+# Verify ArgoCD Server Deployment
+- name: Verify ArgoCD Server Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "ArgoCD Server"
+    component_namespace: "{{ argocd_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ argocd_vars.kubernetes.helm.chart.name }}-server"
+
+# Verify ArgoCD Repo Server Deployment
+- name: Verify ArgoCD Repo Server Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "ArgoCD Repo Server"
+    component_namespace: "{{ argocd_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ argocd_vars.kubernetes.helm.chart.name }}-repo-server"
+
+# Verify ArgoCD API is available
+- name: Verify ArgoCD API Is Available
+  ansible.builtin.uri:
+    url: "https://{{ argocd_map.gateway.server.hostname | default('localhost:8080') }}/api/version"
+    validate_certs: false
+    status_code: 200
+  register: argocd_api
+  until: argocd_api.status == 200
+  retries: 20
+  delay: 15
+  when: externaldns_vars.cloudflare.host.domain | lower != 'disabled'

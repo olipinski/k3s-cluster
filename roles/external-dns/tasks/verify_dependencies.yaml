@@ -1,0 +1,8 @@
+---
+# Use the dependency map to determine and verify dependencies
+- name: Set Role Name for Verification
+  ansible.builtin.set_fact:
+    role_name: "external-dns"
+
+- name: Verify Component Dependencies
+  include_tasks: roles/_common/tasks/verify_dependency.yaml

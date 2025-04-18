@@ -1,0 +1,9 @@
+---
+# No specific verification needed for Helm
+# If we can run "helm version", Helm is working
+- name: Verify Helm is Installed and Functioning
+  ansible.builtin.command:
+    cmd: helm version --short
+  register: helm_version
+  changed_when: false
+  failed_when: helm_version.rc != 0

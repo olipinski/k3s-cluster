@@ -1,0 +1,28 @@
+---
+- name: Set Facts About Required Dependencies
+  ansible.builtin.set_fact:
+    required_dependencies: "{{ component_dependencies[role_name] | default([]) }}"
+
+- name: Check if Required Dependencies Are Deployed
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ required_dependencies | difference(deployed_components) }}"
+
+- name: Fail if Dependencies Are Missing
+  ansible.builtin.fail:
+    msg: "Cannot deploy {{ role_name }} because these dependencies are missing: {{ missing_dependencies | join(', ') }}"
+  when: missing_dependencies | length > 0
+
+- name: Set Current Role Name for Verification
+  ansible.builtin.set_fact:
+    verifying_role: "{{ role_name }}"
+
+- name: Verify Dependencies Are Ready
+  include_tasks: roles/_common/tasks/verify_dependency.yaml
+
+- name: Deploy Required Role
+  ansible.builtin.include_role:
+    name: "{{ role_name }}"
+
+- name: Mark Component as Deployed
+  ansible.builtin.set_fact:
+    deployed_components: "{{ deployed_components + [role_name] }}"

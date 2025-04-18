@@ -1,0 +1,10 @@
+---
+# Verify Kured DaemonSet is ready
+- name: Verify Kured DaemonSet Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Kured"
+    component_namespace: "{{ kured_vars.kubernetes.namespace }}"
+    component_type: "pod"
+    component_label: "app.kubernetes.io/name"
+    component_value: "{{ kured_vars.kubernetes.helm.chart.name }}"

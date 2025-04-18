@@ -1,0 +1,9 @@
+---
+# Verify Kubernetes Dashboard Deployment
+- name: Verify Kubernetes Dashboard Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Kubernetes Dashboard"
+    component_namespace: "{{ kubernetes_dashboard_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ kubernetes_dashboard_vars.kubernetes.helm.chart.name }}-kubernetes-dashboard"

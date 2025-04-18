@@ -1,0 +1,42 @@
+---
+# This file defines the dependencies between components
+# Format: component: [list of dependencies]
+component_dependencies:
+  # Core infrastructure
+  k3s: []  # Base component, no dependencies
+  helm: [k3s]  # Needs working k3s
+
+  # Networking and core components
+  cilium: [k3s, helm]  # Replaces kube-proxy and flannel
+  coredns: [k3s, helm, cilium]  # Needs CNI for DNS resolution
+
+  # Security and service discovery
+  cert-manager: [k3s, helm, cilium]  # Needs networking
+  external-dns: [k3s, helm, cilium, cert-manager]  # Needs cert-manager for ACME
+
+  # Storage
+  longhorn: [k3s, helm, cilium]  # Needs networking
+
+  # Applications and utilities
+  metrics-server: [k3s, helm, cilium]
+  kured: [k3s, helm, cilium]
+
+  # Monitoring and logging
+  victoria-metrics: [k3s, helm, cilium, cert-manager, longhorn]
+  victoria-logs: [k3s, helm, cilium, cert-manager, longhorn]
+
+  # UI and deployment tools
+  argo-cd: [k3s, helm, cilium, cert-manager, external-dns]
+  k8s-dashboard: [k3s, helm, cilium, cert-manager]
+
+# Component verification settings (customize timeouts based on hardware capabilities)
+component_verification:
+  default:
+    retries: 30
+    delay: 10
+  longhorn:  # Storage initialization can take longer
+    retries: 45
+    delay: 20
+  victoria-metrics:  # Complex statefulsets take time
+    retries: 40
+    delay: 15

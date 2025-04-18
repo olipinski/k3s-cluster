@@ -43,10 +43,37 @@
     - 5
   tags: kubernetes
 
-- name: Charts Provisioning
+- name: Charts Provisioning with Dependency Management
   hosts: server
   become: true
   gather_facts: true
+  pre_tasks:
+    - name: Initialize Deployed Components List
+      ansible.builtin.set_fact:
+        deployed_components: ["k3s", "helm"]  # These are deployed in the previous play
+
+  tasks:
+    - name: Deploy Components in Dependency Order
+      include_role:
+        name: dependency-manager
+      vars:
+        role_name: "{{ component }}"
+      loop:
+        - cilium
+        - coredns
+        - cert-manager
+        - external-dns
+        - longhorn
+        - metrics-server
+        - kured
+        - victoria-logs
+        - victoria-metrics
+        - argo-cd
+        - k8s-dashboard
+      loop_control:
+        loop_var: component
+      tags: charts
+
   post_tasks:
     - name: Perform post-install tasks
       ansible.builtin.include_role:
@@ -65,16 +92,4 @@
         - k8s-dashboard
       loop_control:
         loop_var: postinstall
-  roles:
-    - cilium
-    - coredns
-    - cert-manager
-    - external-dns
-    - argo-cd
-    - kured
-    - longhorn
-    - metrics-server
-    - victoria-logs
-    - victoria-metrics
-    - k8s-dashboard
-  tags: charts
+      tags: charts

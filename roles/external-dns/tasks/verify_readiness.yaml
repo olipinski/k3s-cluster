@@ -1,0 +1,26 @@
+---
+# Verify External-DNS Deployment is ready
+- name: Verify External-DNS Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "External-DNS"
+    component_namespace: "{{ externaldns_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ externaldns_vars.kubernetes.helm.chart.name }}"
+
+# Verify ACME ClusterIssuer is ready if using external-dns for Cloudflare
+- name: Verify ACME ClusterIssuer Is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: ClusterIssuer
+    name: "{{ externaldns_project.cloudflare.cluster.issuer }}"
+  register: acme_issuer
+  until: >
+    acme_issuer.resources is defined and
+    acme_issuer.resources | length > 0 and
+    (acme_issuer.resources[0].status.conditions | default([]) |
+    selectattr('type', 'equalto', 'Ready') |
+    selectattr('status', 'equalto', 'True') | list | length) > 0
+  retries: "{{ component_verification.default.retries }}"
+  delay: "{{ component_verification.default.delay }}"
+  when: externaldns_vars.cloudflare.host.domain | lower != 'disabled'

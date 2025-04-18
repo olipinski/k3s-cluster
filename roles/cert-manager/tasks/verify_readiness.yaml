@@ -1,0 +1,34 @@
+---
+# Verify cert-manager controller deployment is ready
+- name: Verify Cert-Manager Controller Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Cert-Manager Controller"
+    component_namespace: "{{ certmanager_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ certmanager_vars.kubernetes.helm.chart.name }}"
+
+# Verify cert-manager webhook deployment is ready
+- name: Verify Cert-Manager Webhook Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Cert-Manager Webhook"
+    component_namespace: "{{ certmanager_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ certmanager_vars.kubernetes.helm.chart.name }}-webhook"
+
+# Verify ClusterIssuer is ready
+- name: Verify ClusterIssuer Is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: ClusterIssuer
+    name: "{{ certmanager_map.ca.cluster.issuer.name }}"
+  register: cluster_issuer
+  until: >
+    cluster_issuer.resources is defined and
+    cluster_issuer.resources | length > 0 and
+    (cluster_issuer.resources[0].status.conditions | default([]) |
+    selectattr('type', 'equalto', 'Ready') |
+    selectattr('status', 'equalto', 'True') | list | length) > 0
+  retries: "{{ component_verification.default.retries }}"
+  delay: "{{ component_verification.default.delay }}"

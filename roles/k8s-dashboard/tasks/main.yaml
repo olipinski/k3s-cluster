@@ -1,19 +1,12 @@
 ---
-- name: Role Facts
-  ansible.builtin.include_role:
-    name: "{{ role }}"
-    tasks_from: facts
-  loop:
-    - external-dns
-    - k3s
-    - victoria-metrics
-    - kubernetes-dashboard
-  loop_control:
-    loop_var: role
-
 - name: Role Validation
   ansible.builtin.import_tasks:
     file: validation.yaml
+  any_errors_fatal: true
+
+- name: Verify Dependencies
+  ansible.builtin.import_tasks:
+    file: verify_dependencies.yaml
   any_errors_fatal: true
 
 - name: Role Provisioning

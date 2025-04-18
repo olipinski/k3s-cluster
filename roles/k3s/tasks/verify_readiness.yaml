@@ -1,0 +1,17 @@
+---
+- name: Verify K3s Cluster Readiness
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Node
+    label_selectors:
+      - "kubernetes.io/os=linux"
+  register: k3s_nodes
+  until: >
+    k3s_nodes.resources is defined and
+    k3s_nodes.resources | length > 0 and
+    (k3s_nodes.resources | map(attribute='status.conditions') | flatten |
+    selectattr('type', 'equalto', 'Ready') |
+    selectattr('status', 'equalto', 'True') | list | length) ==
+    (k3s_nodes.resources | length)
+  retries: "{{ component_verification.default.retries }}"
+  delay: "{{ component_verification.default.delay }}"

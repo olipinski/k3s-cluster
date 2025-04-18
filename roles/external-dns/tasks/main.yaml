@@ -4,6 +4,11 @@
     file: validation.yaml
   any_errors_fatal: true
 
+- name: Verify Dependencies
+  ansible.builtin.import_tasks:
+    file: verify_dependencies.yaml
+  any_errors_fatal: true
+
 - name: Role Provisioning
   when:
     - inventory_hostname in k3s_map.server.hosts

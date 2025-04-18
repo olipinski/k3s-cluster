@@ -1,0 +1,13 @@
+---
+# This task verifies the readiness of all dependencies for a component
+- name: Verify Dependencies for {{ role_name }}
+  block:
+    - name: Get Dependencies for {{ role_name }}
+      ansible.builtin.set_fact:
+        required_dependencies: "{{ component_dependencies[role_name] | default([]) }}"
+
+    - name: Verify Each Dependency
+      include_tasks: roles/{{ dependency }}/tasks/verify_readiness.yaml
+      loop: "{{ required_dependencies }}"
+      loop_control:
+        loop_var: dependency

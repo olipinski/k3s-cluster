@@ -1,0 +1,69 @@
+---
+# Verify Victoria Metrics Operator Deployment
+- name: Verify Victoria Metrics Operator Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Victoria Metrics Operator"
+    component_namespace: "{{ victoriametrics_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ victoriametrics_vars.kubernetes.helm.chart.victoriametrics.alias }}-victoria-metrics-operator"
+    component_retries: "{{ component_verification.victoria-metrics.retries }}"
+    component_delay: "{{ component_verification.victoria-metrics.delay }}"
+
+# Verify Grafana Deployment
+- name: Verify Grafana Deployment Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "Grafana"
+    component_namespace: "{{ victoriametrics_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ victoriametrics_vars.kubernetes.helm.chart.victoriametrics.alias }}-grafana"
+    component_retries: "{{ component_verification.victoria-metrics.retries }}"
+    component_delay: "{{ component_verification.victoria-metrics.delay }}"
+
+# Verify VMSingle if not in cluster mode
+- name: Verify Victoria Metrics Single Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "VMSingle"
+    component_namespace: "{{ victoriametrics_vars.kubernetes.namespace }}"
+    component_type: "pod"
+    component_label: "app.kubernetes.io/name"
+    component_value: "vmsingle"
+    component_retries: "{{ component_verification.victoria-metrics.retries }}"
+    component_delay: "{{ component_verification.victoria-metrics.delay }}"
+  when:
+    - victoriametrics_vars.kubernetes.vmcluster is defined
+    - victoriametrics_vars.kubernetes.vmcluster.enabled is defined
+    - not victoriametrics_vars.kubernetes.vmcluster.enabled
+
+# Verify VMCluster components if in cluster mode
+- name: Verify Victoria Metrics VMSelect Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "VMSelect"
+    component_namespace: "{{ victoriametrics_vars.kubernetes.namespace }}"
+    component_type: "pod"
+    component_label: "app.kubernetes.io/name"
+    component_value: "vmselect"
+    component_retries: "{{ component_verification.victoria-metrics.retries }}"
+    component_delay: "{{ component_verification.victoria-metrics.delay }}"
+  when:
+    - victoriametrics_vars.kubernetes.vmcluster is defined
+    - victoriametrics_vars.kubernetes.vmcluster.enabled is defined
+    - victoriametrics_vars.kubernetes.vmcluster.enabled
+
+- name: Verify Victoria Metrics VMStorage Is Ready
+  include_tasks: roles/_common/tasks/verify_component.yaml
+  vars:
+    component_name: "VMStorage"
+    component_namespace: "{{ victoriametrics_vars.kubernetes.namespace }}"
+    component_type: "pod"
+    component_label: "app.kubernetes.io/name"
+    component_value: "vmstorage"
+    component_retries: "{{ component_verification.victoria-metrics.retries }}"
+    component_delay: "{{ component_verification.victoria-metrics.delay }}"
+  when:
+    - victoriametrics_vars.kubernetes.vmcluster is defined
+    - victoriametrics_vars.kubernetes.vmcluster.enabled is defined
+    - victoriametrics_vars.kubernetes.vmcluster.enabled
