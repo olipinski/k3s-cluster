@@ -1,6 +1,7 @@
 ---
 # This file defines the dependencies between components
-# Format: component: [list of dependencies]
+
+# Required dependencies that must be present
 component_dependencies:
   # Core infrastructure
   k3s: [] # Base component, no dependencies
@@ -22,14 +23,36 @@ component_dependencies:
   kured: [k3s, helm, cilium]
 
   # Monitoring and logging
-  victoria-metrics: [k3s, helm, cilium, cert-manager, longhorn]
-  victoria-logs: [k3s, helm, cilium, cert-manager, longhorn]
+  victoria-metrics: [k3s, helm, cilium, cert-manager]
+  victoria-logs: [k3s, helm, cilium, cert-manager]
 
   # UI and deployment tools
-  argo-cd: [k3s, helm, cilium, cert-manager, external-dns]
+  argo-cd: [k3s, helm, cilium, cert-manager]
   k8s-dashboard: [k3s, helm, cilium, cert-manager]
 
-# Component verification settings (customize timeouts based on hardware capabilities)
+# Optional dependencies that enhance functionality but aren't required
+component_optional_dependencies:
+  # Core infrastructure has no optional dependencies
+  k3s: []
+  helm: []
+  cilium: []
+  coredns: []
+
+  # Components that work better with storage but don't strictly require it
+  cert-manager: []
+  external-dns: []
+  metrics-server: []
+  kured: []
+
+  # Monitoring components work better with persistent storage
+  victoria-metrics: [longhorn]
+  victoria-logs: [longhorn]
+
+  # Application tools
+  argo-cd: [external-dns]
+  k8s-dashboard: [external-dns]
+
+# Component verification settings
 component_verification:
   default:
     retries: 30

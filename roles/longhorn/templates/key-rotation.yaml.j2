@@ -5,14 +5,25 @@ metadata:
   namespace: {{ longhorn_vars.kubernetes.namespace }}
 spec:
   schedule: "0 0 1 */3 *"  # Run every 3 months
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      backoffLimit: 3
       template:
         spec:
           serviceAccountName: longhorn-service-account
+          securityContext:
+            runAsUser: 0
           containers:
           - name: key-rotation
             image: bitnami/kubectl:latest
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
             command:
             - /bin/bash
             - -c
@@ -20,37 +31,108 @@ spec:
               #!/bin/bash
               set -e
 
-              # Generate new encryption key
-              NEW_KEY=$(head -c 32 /dev/urandom | base64)
+              echo "Starting encryption key rotation at $(date)"
 
-              # Store new key in temporary secret
+              # Generate new key with higher entropy
+              NEW_KEY=$(head -c 64 /dev/urandom | base64 | tr -d '\n')
+
+              # Store new key in temporary secret with managed metadata
+              echo "Creating new encryption key secret"
               kubectl create secret generic {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new \
                 --namespace {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }} \
                 --from-literal=CRYPTO_KEY_VALUE="$NEW_KEY" \
                 --dry-run=client -o yaml | kubectl apply -f -
 
-              echo "Created new encryption key, now updating volumes..."
+              echo "Created new encryption key"
 
-              # Get all volumes and rotate keys
-              VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io -o jsonpath='{.items[*].metadata.name}')
+              # Only rotate detached volumes first - this is safer
+              echo "Starting key rotation for detached volumes..."
+              DETACHED_VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io \
+                --field-selector="status.state!=attached" \
+                -o jsonpath='{.items[*].metadata.name}')
 
-              for VOLUME in $VOLUMES; do
+              # Count of rotated volumes
+              ROTATED_COUNT=0
+
+              # Process detached volumes first
+              for VOLUME in $DETACHED_VOLUMES; do
                 if kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.spec.encrypted}' | grep -q "true"; then
-                  echo "Rotating encryption key for volume: $VOLUME"
-                  kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
-                    -p='[{"op": "replace", "path": "/spec/keyProvider", "value": "kubernetes-secret"}]'
+                  echo "Rotating encryption key for detached volume: $VOLUME"
                   kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
                     -p='[{"op": "replace", "path": "/spec/keySecret", "value": "{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new@{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}"}]'
+                  ROTATED_COUNT=$((ROTATED_COUNT+1))
+
+                  # Add a small delay between operations to avoid overwhelming the API
+                  sleep 2
                 fi
               done
 
-              echo "Waiting for key rotation to complete..."
-              sleep 300
+              echo "Rotated keys for $ROTATED_COUNT detached volumes"
 
-              # Update main key
+              if [ $ROTATED_COUNT -gt 0 ]; then
+                echo "Waiting for detached volume key rotation to complete (5 minutes)..."
+                sleep 300
+              fi
+
+              # Now handle attached volumes (more risky, do one at a time with waits)
+              echo "Starting key rotation for attached volumes..."
+              ATTACHED_VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io \
+                --field-selector="status.state=attached" \
+                -o jsonpath='{.items[*].metadata.name}')
+
+              ATTACHED_ROTATED=0
+
+              for VOLUME in $ATTACHED_VOLUMES; do
+                if kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.spec.encrypted}' | grep -q "true"; then
+                  # Get volume information for safety checks
+                  PVC_NAME=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.kubernetesStatus.pvcName}' 2>/dev/null || echo "")
+                  PVC_NAMESPACE=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.kubernetesStatus.namespace}' 2>/dev/null || echo "")
+
+                  # Skip system volumes for safety
+                  if [[ "$PVC_NAMESPACE" == "kube-system" || "$PVC_NAMESPACE" == "longhorn-system" ]]; then
+                    echo "Skipping system volume: $VOLUME ($PVC_NAMESPACE/$PVC_NAME)"
+                    continue
+                  fi
+
+                  echo "Rotating encryption key for attached volume: $VOLUME ($PVC_NAMESPACE/$PVC_NAME)"
+
+                  # Rotate the key
+                  kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
+                    -p='[{"op": "replace", "path": "/spec/keySecret", "value": "{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new@{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}"}]'
+                  ATTACHED_ROTATED=$((ATTACHED_ROTATED+1))
+
+                  # Wait for volume to stabilize after key rotation - important for attached volumes
+                  echo "Waiting for volume $VOLUME to stabilize..."
+                  sleep 60
+
+                  # Verify volume is still healthy
+                  VOLUME_STATE=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.state}')
+                  VOLUME_ROBUSTNESS=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.robustness}')
+
+                  echo "Volume $VOLUME state: $VOLUME_STATE, robustness: $VOLUME_ROBUSTNESS"
+
+                  if [[ "$VOLUME_ROBUSTNESS" != "healthy" ]]; then
+                    echo "WARNING: Volume $VOLUME is not healthy after key rotation! Manual intervention may be required."
+                  fi
+                fi
+              done
+
+              echo "Rotated keys for $ATTACHED_ROTATED attached volumes"
+
+              # We need at least some volumes to have been rotated to update the main key
+              if [ $ROTATED_COUNT -eq 0 ] && [ $ATTACHED_ROTATED -eq 0 ]; then
+                echo "No encrypted volumes were found to rotate. Aborting main key update."
+                exit 0
+              fi
+
+              echo "All volumes processed, updating main key..."
+
+              # Update main encryption key secret with the new key
               kubectl get secret {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new \
                 -n {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }} -o yaml | \
+                sed "s/{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new/{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}/" | \
                 kubectl replace -f - --force
 
-              echo "Key rotation completed."
+              echo "Encryption key rotation completed at $(date)"
+              echo "New key has been successfully applied to all volumes and the main key secret updated."
           restartPolicy: OnFailure

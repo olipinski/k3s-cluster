@@ -11,8 +11,14 @@ global_defs {
     vrrp_startup_delay 10
 }
 
-vrrp_script chk_haproxy {
-    script '/usr/bin/killall -0 haproxy'
+# Custom script to check API server functionality, not just HAProxy process
+vrrp_script chk_k3s_api {
+    script "/usr/local/bin/check_k3s_api.sh"
+    interval 5
+    weight 50
+    fall 2
+    rise 1
+    timeout 3
 }
 
 vrrp_instance haproxy-vip {
@@ -38,10 +44,14 @@ vrrp_instance haproxy-vip {
 {% endif %}
     smtp_alert
     track_script {
-        chk_haproxy
+        chk_k3s_api
     }
     virtual_router_id 10
     virtual_ipaddress {
         {{ k3s_vars.server.api.host }}
     }
+    # Prevent flapping
+    nopreempt
+    # Delay gratuitous ARP to prevent issues
+    garp_master_delay 5
 }

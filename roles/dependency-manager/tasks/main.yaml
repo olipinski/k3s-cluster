@@ -1,28 +1,16 @@
 ---
-- name: Set Facts About Required Dependencies
+# Improved dependency manager with resilience
+
+- name: Set Debug Mode
   ansible.builtin.set_fact:
-    required_dependencies: "{{ component_dependencies[role_name] | default([]) }}"
+    debug_mode: "{{ lookup('env', 'DEBUG') | default(false, true) | bool }}"
 
-- name: Check if Required Dependencies Are Deployed
-  ansible.builtin.set_fact:
-    missing_dependencies: "{{ required_dependencies | difference(deployed_components) }}"
+- name: Process Component Dependencies
+  include_tasks: roles/_common/tasks/dependency_framework.yaml
+  vars:
+    role_name: "{{ component_name }}"
 
-- name: Fail if Dependencies Are Missing
-  ansible.builtin.fail:
-    msg: "Cannot deploy {{ role_name }} because these dependencies are missing: {{ missing_dependencies | join(', ') }}"
-  when: missing_dependencies | length > 0
-
-- name: Set Current Role Name for Verification
-  ansible.builtin.set_fact:
-    verifying_role: "{{ role_name }}"
-
-- name: Verify Dependencies Are Ready
-  include_tasks: roles/_common/tasks/verify_dependency.yaml
-
-- name: Deploy Required Role
-  ansible.builtin.include_role:
-    name: "{{ role_name }}"
-
-- name: Mark Component as Deployed
-  ansible.builtin.set_fact:
-    deployed_components: "{{ deployed_components + [role_name] }}"
+- name: Deploy Component
+  include_role:
+    name: "{{ component_name }}"
+  when: missing_required | length == 0

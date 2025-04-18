@@ -52,7 +52,7 @@ configs:
   rbac:
     {{ lookup('ansible.builtin.template', 'config_rbac.j2') | trim | indent(4) }}
   secret:
-    argocdServerAdminPassword: {{ argocd_map.credentials.server.admin.password }}
+    createSecret: false
 controller:
   dynamicClusterDistribution: {{ argocd_vars.kubernetes.controller.dynamic_cluster_distribution.enabled | lower }}
 {% if argocd_postinstall is truthy and argocd_map.metrics.service.monitor.enabled is truthy %}

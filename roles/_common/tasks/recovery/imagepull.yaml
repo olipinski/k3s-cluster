@@ -1,0 +1,47 @@
+---
+# Recovery for ImagePullBackOff issues
+- name: Get Pod Details for Image Pull Issues
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    namespace: "{{ component_namespace }}"
+    label_selectors:
+      - "{{ component_label }}={{ component_value }}"
+  register: pod_info
+
+- name: Extract Image Details
+  ansible.builtin.set_fact:
+    container_images: "{{ pod_info.resources | map(attribute='spec.containers') | flatten | map(attribute='image') | list | unique }}"
+
+- name: Debug Image Information
+  ansible.builtin.debug:
+    msg: "Attempting to pull images: {{ container_images | join(', ') }}"
+  when: debug_mode | default(false) | bool
+
+- name: Try Pulling Images Locally on First Node
+  ansible.builtin.command:
+    cmd: "crictl pull {{ image }}"
+  delegate_to: "{{ groups['server'][0] }}"
+  loop: "{{ container_images }}"
+  loop_control:
+    loop_var: image
+  register: pull_result
+  ignore_errors: true
+
+- name: Report Pull Results
+  ansible.builtin.debug:
+    msg: "Image pull {{ 'successful' if item.rc == 0 else 'failed' }}: {{ item.item }}"
+  loop: "{{ pull_result.results }}"
+  loop_control:
+    loop_var: item
+  when: debug_mode | default(false) | bool
+
+- name: Delete Pods to Force Recreation
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ component_namespace }}"
+    state: absent
+  loop: "{{ pod_info.resources }}"
+  when: pull_result.results | selectattr('rc', 'equalto', 0) | list | length > 0

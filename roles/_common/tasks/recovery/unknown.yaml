@@ -1,0 +1,43 @@
+---
+# Generic recovery for unknown issues
+- name: Get Pod Details
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    namespace: "{{ component_namespace }}"
+    label_selectors:
+      - "{{ component_label }}={{ component_value }}"
+  register: pod_info
+
+- name: Get Events Related to Pods
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Event
+    namespace: "{{ component_namespace }}"
+    field_selectors:
+      - "involvedObject.name={{ item.metadata.name }}"
+  loop: "{{ pod_info.resources }}"
+  register: pod_events
+  when: pod_info.resources | length > 0
+
+- name: Display Events for Debugging
+  ansible.builtin.debug:
+    msg: |
+      Events for pod {{ item.item.metadata.name }}:
+      {% for event in item.resources %}
+      - {{ event.lastTimestamp | default('unknown') }}: {{ event.reason }} - {{ event.message }}
+      {% endfor %}
+  loop: "{{ pod_events.results }}"
+  loop_control:
+    loop_var: item
+  when: pod_info.resources | length > 0
+
+- name: Attempt Generic Recovery by Deleting Pods
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ component_namespace }}"
+    state: absent
+  loop: "{{ pod_info.resources }}"
+  when: pod_info.resources | length > 0

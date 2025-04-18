@@ -1,0 +1,71 @@
+---
+# This framework helps manage component dependencies with resilience
+
+- name: Set Required and Optional Dependencies
+  ansible.builtin.set_fact:
+    required_dependencies: "{{ component_dependencies[role_name] | default([]) }}"
+    optional_dependencies: "{{ component_optional_dependencies[role_name] | default([]) }}"
+    dependency_status: {}
+
+- name: Display Dependency Information
+  ansible.builtin.debug:
+    msg: |
+      Component: {{ role_name }}
+      Required dependencies: {{ required_dependencies | join(', ') }}
+      Optional dependencies: {{ optional_dependencies | join(', ') }}
+  when: debug_mode | default(false) | bool
+
+- name: Check Required Dependencies Status
+  ansible.builtin.set_fact:
+    missing_required: "{{ required_dependencies | difference(deployed_components) }}"
+    missing_optional: "{{ optional_dependencies | difference(deployed_components) }}"
+
+- name: Attempt to Deploy Missing Required Dependencies
+  when: missing_required | length > 0
+  block:
+    - name: Deploy Required Dependency
+      include_role:
+        name: "{{ item }}"
+      loop: "{{ missing_required }}"
+      register: dependency_result
+      ignore_errors: true
+
+    - name: Update Dependency Status
+      ansible.builtin.set_fact:
+        dependency_status: "{{ dependency_status | combine({item.item: (not item.failed)}) }}"
+        deployed_components: "{{ deployed_components + [item.item] }}"
+      loop: "{{ dependency_result.results }}"
+      when: not item.failed | default(false)
+
+    - name: Recalculate Missing Required Dependencies
+      ansible.builtin.set_fact:
+        missing_required: "{{ required_dependencies | difference(deployed_components) }}"
+
+    - name: Evaluate If Component Can Proceed
+      ansible.builtin.set_fact:
+        can_proceed: "{{ missing_required | length == 0 }}"
+        degraded_mode: "{{ missing_optional | length > 0 or (dependency_status.values() | select('equalto', false) | list | length > 0) }}"
+
+    - name: Notify About Failed Dependencies
+      ansible.builtin.debug:
+        msg: >
+          WARNING: Some dependencies for {{ role_name }} failed to deploy:
+          {{ dependency_status | dict2items | selectattr('value', 'equalto', false) | map(attribute='key') | join(', ') }}
+      when: dependency_status.values() | select('equalto', false) | list | length > 0
+
+    - name: Notify About Degraded Mode
+      ansible.builtin.debug:
+        msg: >
+          NOTICE: Deploying {{ role_name }} in degraded mode.
+          Missing optional dependencies: {{ missing_optional | join(', ') }}.
+      when:
+        - can_proceed | bool
+        - degraded_mode | bool
+
+- name: Skip Component Due to Missing Dependencies
+  ansible.builtin.fail:
+    msg: |
+      Cannot deploy {{ role_name }}.
+      Missing required dependencies: {{ missing_required | join(', ') }}
+      Please fix these dependencies first.
+  when: missing_required | length > 0

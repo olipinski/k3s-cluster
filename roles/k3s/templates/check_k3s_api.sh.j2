@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Script to verify K3s API server health
+# Used by Keepalived for intelligent failover
+
+API_URL="https://127.0.0.1:{{ k3s_vars.server.api.port }}/healthz"
+CURL_OPTS="--insecure --silent --max-time 5"
+
+# Try to reach the API server health endpoint
+RESPONSE=$(curl $CURL_OPTS $API_URL)
+
+if [ "$RESPONSE" == "ok" ]; then
+    # API is working through HAProxy
+    exit 0
+else
+    # Check if haproxy is running first
+    if ! systemctl is-active --quiet haproxy; then
+        echo "HAProxy not running"
+        exit 1
+    fi
+
+    # Check each backend server directly
+{% for host, ip in k3s_map.server.hosts | zip(k3s_map_server.ips) %}
+    if curl $CURL_OPTS https://{{ ip }}:{{ k3s_vars.server.api.port }}/healthz | grep -q "ok"; then
+        echo "K3s API accessible on {{ host }} ({{ ip }})"
+        # HAProxy should be restarted if a backend is reachable but HAProxy isn't working
+        systemctl restart haproxy
+        sleep 2
+        # Check if restarting fixed the issue
+        if curl $CURL_OPTS $API_URL | grep -q "ok"; then
+            echo "HAProxy restart fixed the issue"
+            exit 0
+        else
+            echo "HAProxy still not working after restart"
+            exit 1
+        fi
+    fi
+{% endfor %}
+
+    echo "No K3s API servers reachable"
+    exit 1
+fi

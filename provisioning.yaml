@@ -58,6 +58,7 @@
         name: dependency-manager
       vars:
         role_name: "{{ component }}"
+        component_name: "{{ component }}"
       loop:
         - cilium
         - coredns

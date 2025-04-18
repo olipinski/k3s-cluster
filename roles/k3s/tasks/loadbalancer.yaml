@@ -30,14 +30,16 @@
       loop:
         - haproxy
         - keepalived
+        - curl
 
     - name: Update haproxy configuration file
-      ansible.builtin.blockinfile:
-        block: "{{ lookup('ansible.builtin.template', 'haproxy.j2') }}"
+      ansible.builtin.template:
+        src: haproxy.j2
         dest: /etc/haproxy/haproxy.cfg
-        insertafter: ^\terrorfile\s504\s\/etc\/haproxy\/errors\/504\.http$
-        marker: "# {mark} K3s Settings"
-        prepend_newline: true
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart loadbalancer services
 
     - name: Update keepalived configuration file
       ansible.builtin.template:
@@ -45,7 +47,17 @@
         dest: /etc/keepalived/keepalived.conf
         owner: root
         group: root
-        mode: "644"
+        mode: "0644"
+      notify: Restart loadbalancer services
+
+    - name: Install K3s API health check script
+      ansible.builtin.template:
+        src: check_k3s_api.sh.j2
+        dest: /usr/local/bin/check_k3s_api.sh
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart loadbalancer services
 
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers

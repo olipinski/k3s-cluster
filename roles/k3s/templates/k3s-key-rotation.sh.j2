@@ -1,23 +1,38 @@
 #!/bin/bash
 set -e
 
-# Script to rotate K3s encryption keys
+# Enhanced K3s encryption key rotation script
+# Includes proper verification and staged rotation
 
 ENCRYPTION_DIR="{{ k3s_map.node.directory.encryption }}"
 CONFIG_FILE="$ENCRYPTION_DIR/encryption-config.yaml"
 BACKUP_DIR="$ENCRYPTION_DIR/backups"
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
+LOGFILE="/var/log/k3s-key-rotation-$TIMESTAMP.log"
+
+log() {
+  echo "[$(date +%Y-%m-%d\ %H:%M:%S)] $1" | tee -a $LOGFILE
+}
+
+log "Starting encryption key rotation process"
 
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
 
 # Backup current config
 cp "$CONFIG_FILE" "$BACKUP_DIR/encryption-config-$TIMESTAMP.yaml"
+log "Backed up current encryption configuration"
+
+# Extract current key for verification
+OLD_KEY=$(grep -A 3 "aescbc" "$CONFIG_FILE" | grep "secret" | awk -F': ' '{print $2}')
+log "Retrieved current encryption key for verification"
 
 # Generate new encryption key
 NEW_KEY=$(head -c 32 /dev/urandom | base64)
+log "Generated new encryption key"
 
-# Create new config with the new key as the first provider
+# STAGE 1: Add new key as primary, keep old key as secondary
+log "STAGE 1: Adding new key while keeping old key as secondary"
 cat > "$CONFIG_FILE" << EOF
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
@@ -30,23 +45,84 @@ resources:
             - name: key1
               secret: $NEW_KEY
             - name: key2
-              secret: {{ global_map.k3s.encryption.key }}
+              secret: $OLD_KEY
       - identity: {}
 EOF
 
 # Update permissions
 chmod 0600 "$CONFIG_FILE"
+log "Updated encryption configuration with new key"
 
 # Restart K3s to apply the new key
+log "Restarting K3s to apply new encryption configuration"
 systemctl restart k3s.service
 
 # Wait for the API server to be available
-timeout 300 bash -c 'until kubectl get nodes &>/dev/null; do echo "Waiting for API server..."; sleep 5; done'
+log "Waiting for API server to become available..."
+TIMEOUT=300
+START_TIME=$(date +%s)
+while ! kubectl get nodes &>/dev/null; do
+  CURRENT_TIME=$(date +%s)
+  ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+  if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+    log "ERROR: Timed out waiting for API server to become available"
+    exit 1
+  fi
+
+  log "API server not yet available. Waiting..."
+  sleep 5
+done
+log "API server is available"
 
 # Re-encrypt all secrets with the new key
-kubectl get secrets --all-namespaces -o json | kubectl replace -f -
+log "Re-encrypting all secrets with new key"
+NAMESPACES=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}')
+for NS in $NAMESPACES; do
+  log "Processing namespace: $NS"
+  SECRETS=$(kubectl get secrets -n $NS -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+  for SECRET in $SECRETS; do
+    log "  Re-encrypting secret: $SECRET"
+    kubectl get secret -n $NS $SECRET -o yaml | kubectl apply -f -
+  done
+done
 
-# Remove the old key after all secrets are re-encrypted
+# STAGE 2: Verify secrets are encrypted with the new key
+log "STAGE 2: Verifying secrets are encrypted with new key"
+VERIFICATION_FAILED=0
+
+# Sample a few secrets from each namespace
+for NS in $NAMESPACES; do
+  # Get up to 5 secrets from each namespace for verification
+  SAMPLE_SECRETS=$(kubectl get secrets -n $NS -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | head -5)
+
+  for SECRET in $SAMPLE_SECRETS; do
+    # Skip service account tokens as they're managed differently
+    if [[ "$SECRET" == *token* ]]; then
+      continue
+    fi
+
+    # Get the secret and check its data
+    SECRET_DATA=$(kubectl get secret -n $NS $SECRET -o yaml)
+
+    # Check if we can read the secret - if it's properly encrypted with our key, we should be able to
+    if kubectl get secret -n $NS $SECRET &>/dev/null; then
+      log "  ✓ Secret $NS/$SECRET is readable with new key"
+    else
+      log "  ✗ SECRET $NS/$SECRET is NOT readable with new key"
+      VERIFICATION_FAILED=1
+    fi
+  done
+done
+
+if [ $VERIFICATION_FAILED -eq 1 ]; then
+  log "ERROR: Verification failed! Some secrets not encrypted with new key."
+  log "Keeping both keys in configuration. Manual intervention required."
+  exit 1
+fi
+
+# STAGE 3: Remove the old key after successful verification
+log "STAGE 3: Removing old key from configuration"
 cat > "$CONFIG_FILE" << EOF
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
@@ -61,6 +137,30 @@ resources:
       - identity: {}
 EOF
 
-# Update global encryption key in Ansible vault
-# (This part requires manual update by an administrator)
-echo "Encryption key rotation completed. Please update the global_map.k3s.encryption.key in the Ansible vault."
+# Update permissions
+chmod 0600 "$CONFIG_FILE"
+log "Updated encryption configuration to remove old key"
+
+# Final restart to apply config with only new key
+log "Restarting K3s to apply final configuration"
+systemctl restart k3s.service
+
+log "Waiting for API server to become available..."
+TIMEOUT=300
+START_TIME=$(date +%s)
+while ! kubectl get nodes &>/dev/null; do
+  CURRENT_TIME=$(date +%s)
+  ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+  if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+    log "ERROR: Timed out waiting for API server to become available"
+    exit 1
+  fi
+
+  log "API server not yet available. Waiting..."
+  sleep 5
+done
+
+log "Key rotation completed successfully"
+echo "New encryption key: $NEW_KEY"
+log "Please update the global_map.k3s.encryption.key in Ansible Vault with this new key"

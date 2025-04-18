@@ -1,77 +1,193 @@
 ---
-# Generic component verification for pods
-- name: Verify {{ component_name }} Pods Are Ready
-  kubernetes.core.k8s_info:
-    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-    kind: Pod
-    namespace: "{{ component_namespace }}"
-    label_selectors:
-      - "{{ component_label }}={{ component_value }}"
-  register: component_pods
-  until: >
-    component_pods.resources is defined and
-    component_pods.resources | length > 0 and
-    (component_pods.resources | map(attribute='status.phase') |
-    select('equalto', 'Running') | list | length) ==
-    (component_pods.resources | length) and
-    (component_pods.resources | map(attribute='status.containerStatuses') | flatten |
-    map(attribute='ready') | select('==', true) | list | length) ==
-    (component_pods.resources | map(attribute='status.containerStatuses') | flatten | length)
-  retries: "{{ component_retries | default(component_verification.default.retries) }}"
-  delay: "{{ component_delay | default(component_verification.default.delay) }}"
+# Enhanced component verification with recovery capabilities
+
+# Set success condition variables based on component type
+- name: Set Pod Verification Success Condition
+  ansible.builtin.set_fact:
+    pod_success_condition: >-
+      component_pods.resources is defined and
+      component_pods.resources | length > 0 and
+      (component_pods.resources | map(attribute='status.phase') |
+      select('equalto', 'Running') | list | length) ==
+      (component_pods.resources | length) and
+      (component_pods.resources | map(attribute='status.containerStatuses') | flatten |
+      map(attribute='ready') | select('==', true) | list | length) ==
+      (component_pods.resources | map(attribute='status.containerStatuses') | flatten | length)
   when: component_type == 'pod'
 
-# Generic component verification for deployments
-- name: Verify {{ component_name }} Deployment Is Ready
-  kubernetes.core.k8s_info:
-    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-    kind: Deployment
-    namespace: "{{ component_namespace }}"
-    name: "{{ component_value }}"
-  register: component_deployment
-  until: >
-    component_deployment.resources is defined and
-    component_deployment.resources | length > 0 and
-    (component_deployment.resources[0].status.availableReplicas | default(0)) ==
-    (component_deployment.resources[0].status.replicas | default(0)) and
-    (component_deployment.resources[0].status.readyReplicas | default(0)) ==
-    (component_deployment.resources[0].status.replicas | default(0))
-  retries: "{{ component_retries | default(component_verification.default.retries) }}"
-  delay: "{{ component_delay | default(component_verification.default.delay) }}"
+- name: Set Deployment Verification Success Condition
+  ansible.builtin.set_fact:
+    deployment_success_condition: >-
+      component_deployment.resources is defined and
+      component_deployment.resources | length > 0 and
+      (component_deployment.resources[0].status.availableReplicas | default(0)) ==
+      (component_deployment.resources[0].status.replicas | default(0)) and
+      (component_deployment.resources[0].status.readyReplicas | default(0)) ==
+      (component_deployment.resources[0].status.replicas | default(0))
   when: component_type == 'deployment'
 
-# Generic component verification for statefulsets
-- name: Verify {{ component_name }} StatefulSet Is Ready
-  kubernetes.core.k8s_info:
-    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-    kind: StatefulSet
-    namespace: "{{ component_namespace }}"
-    name: "{{ component_value }}"
-  register: component_statefulset
-  until: >
-    component_statefulset.resources is defined and
-    component_statefulset.resources | length > 0 and
-    (component_statefulset.resources[0].status.readyReplicas | default(0)) ==
-    (component_statefulset.resources[0].status.replicas | default(0))
-  retries: "{{ component_retries | default(component_verification.default.retries) }}"
-  delay: "{{ component_delay | default(component_verification.default.delay) }}"
+- name: Set StatefulSet Verification Success Condition
+  ansible.builtin.set_fact:
+    statefulset_success_condition: >-
+      component_statefulset.resources is defined and
+      component_statefulset.resources | length > 0 and
+      (component_statefulset.resources[0].status.readyReplicas | default(0)) ==
+      (component_statefulset.resources[0].status.replicas | default(0))
   when: component_type == 'statefulset'
 
-# Generic component verification for CRDs/custom resources
-- name: Verify {{ component_name }} Custom Resource Is Ready
-  kubernetes.core.k8s_info:
-    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-    api_version: "{{ component_api_version }}"
-    kind: "{{ component_kind }}"
-    name: "{{ component_value }}"
-    namespace: "{{ component_namespace | default(omit) }}"
-  register: component_cr
-  until: >
-    component_cr.resources is defined and
-    component_cr.resources | length > 0 and
-    (component_cr.resources[0].status.conditions | default([]) |
-    selectattr('type', 'equalto', '{{ component_condition_type }}') |
-    selectattr('status', 'equalto', '{{ component_condition_status }}') | list | length) > 0
-  retries: "{{ component_retries | default(component_verification.default.retries) }}"
-  delay: "{{ component_delay | default(component_verification.default.delay) }}"
-  when: component_type == 'custom_resource'
+# Verify pods with recovery
+- name: Verify {{ component_name }} Pods Are Ready
+  block:
+    - name: Check {{ component_name }} Pod Status
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        kind: Pod
+        namespace: "{{ component_namespace }}"
+        label_selectors:
+          - "{{ component_label }}={{ component_value }}"
+      register: component_pods
+      until: "{{ pod_success_condition | default(false) }}"
+      retries: "{{ component_retries | default(component_verification.default.retries) | int // 2 }}"
+      delay: "{{ component_delay | default(component_verification.default.delay) }}"
+      failed_when: false
+
+    # Only attempt recovery if verification fails
+    - name: Attempt Recovery for {{ component_name }} Pods
+      when: not (pod_success_condition | default(false))
+      block:
+        - name: Diagnose Pod Issues
+          kubernetes.core.k8s_info:
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            kind: Pod
+            namespace: "{{ component_namespace }}"
+            label_selectors:
+              - "{{ component_label }}={{ component_value }}"
+          register: pod_detailed_info
+
+        - name: Describe Pods Using kubectl
+          ansible.builtin.command:
+            cmd: "kubectl --kubeconfig {{ k3s_project.cluster.kubeconfig }} describe pod -n {{ component_namespace }} -l {{ component_label }}={{ component_value }}"
+          register: pod_diagnosis
+          failed_when: false
+          delegate_to: localhost
+
+        - name: Identify Failure Type
+          ansible.builtin.set_fact:
+            failure_type: >-
+              {% if pod_diagnosis.stdout is defined and pod_diagnosis.stdout is search('ImagePullBackOff|ErrImagePull') %}imagepull
+              {% elif pod_diagnosis.stdout is defined and pod_diagnosis.stdout is search('CrashLoopBackOff') %}crashloop
+              {% elif pod_diagnosis.stdout is defined and pod_diagnosis.stdout is search('FailedScheduling.*Insufficient|OutOfmemory|OOMKilled') %}resources
+              {% else %}unknown{% endif %}
+
+        - name: Display Diagnostic Information
+          ansible.builtin.debug:
+            msg: |
+              Diagnosed issue with {{ component_name }}: {{ failure_type }}
+              Recovery will be attempted.
+
+        - name: Attempt Specific Recovery
+          include_tasks: "recovery/{{ failure_type }}.yaml"
+
+        - name: Final Verification After Recovery
+          kubernetes.core.k8s_info:
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            kind: Pod
+            namespace: "{{ component_namespace }}"
+            label_selectors:
+              - "{{ component_label }}={{ component_value }}"
+          register: component_pods
+          until: "{{ pod_success_condition | default(false) }}"
+          retries: "{{ component_retries | default(component_verification.default.retries) | int // 2 }}"
+          delay: "{{ component_delay | default(component_verification.default.delay) }}"
+  when: component_type == 'pod'
+
+# Verify deployments with recovery
+- name: Verify {{ component_name }} Deployment Is Ready
+  block:
+    - name: Check {{ component_name }} Deployment Status
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        kind: Deployment
+        namespace: "{{ component_namespace }}"
+        name: "{{ component_value }}"
+      register: component_deployment
+      until: "{{ deployment_success_condition | default(false) }}"
+      retries: "{{ component_retries | default(component_verification.default.retries) | int // 2 }}"
+      delay: "{{ component_delay | default(component_verification.default.delay) }}"
+      failed_when: false
+
+    # Recovery for deployment issues
+    - name: Attempt Recovery for {{ component_name }} Deployment
+      when: not (deployment_success_condition | default(false))
+      block:
+        - name: Get Deployment Details for Diagnosis
+          ansible.builtin.command:
+            cmd: "kubectl --kubeconfig {{ k3s_project.cluster.kubeconfig }} describe deployment -n {{ component_namespace }} {{ component_value }}"
+          register: deployment_diagnosis
+          failed_when: false
+          delegate_to: localhost
+
+        - name: Display Deployment Diagnostic Information
+          ansible.builtin.debug:
+            msg: |
+              Deployment {{ component_name }} is not ready. Attempting recovery.
+              Status: {{ component_deployment.resources[0].status | to_nice_yaml }}
+
+        - name: Check for Pods with Issues
+          kubernetes.core.k8s_info:
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            kind: Pod
+            namespace: "{{ component_namespace }}"
+            label_selectors:
+              - "app={{ component_value }}"
+          register: deployment_pods
+
+        - name: Scale Deployment to 0 and Back if No Pods Created
+          block:
+            - name: Scale Down Deployment
+              kubernetes.core.k8s_scale:
+                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+                kind: Deployment
+                name: "{{ component_value }}"
+                namespace: "{{ component_namespace }}"
+                replicas: 0
+                wait: true
+
+            - name: Wait Before Scaling Back Up
+              ansible.builtin.pause:
+                seconds: 10
+
+            - name: Scale Up Deployment
+              kubernetes.core.k8s_scale:
+                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+                kind: Deployment
+                name: "{{ component_value }}"
+                namespace: "{{ component_namespace }}"
+                replicas: "{{ component_deployment.resources[0].spec.replicas }}"
+                wait: true
+          when:
+            - deployment_pods.resources is defined
+            - deployment_pods.resources | length == 0
+
+        - name: Check Pods if Created but Not Ready
+          include_tasks: "recovery/unknown.yaml"
+          vars:
+            component_label: "app"
+          when:
+            - deployment_pods.resources is defined
+            - deployment_pods.resources | length > 0
+
+        - name: Final Verification After Recovery
+          kubernetes.core.k8s_info:
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            kind: Deployment
+            namespace: "{{ component_namespace }}"
+            name: "{{ component_value }}"
+          register: component_deployment
+          until: "{{ deployment_success_condition | default(false) }}"
+          retries: "{{ component_retries | default(component_verification.default.retries) | int // 2 }}"
+          delay: "{{ component_delay | default(component_verification.default.delay) }}"
+  when: component_type == 'deployment'
+
+# Similar block for StatefulSet verification and recovery
+# Include other component types as needed

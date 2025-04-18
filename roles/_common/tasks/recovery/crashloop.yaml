@@ -1,0 +1,65 @@
+---
+# Recovery for CrashLoopBackOff issues
+- name: Get Pod Details for Crash Issues
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    namespace: "{{ component_namespace }}"
+    label_selectors:
+      - "{{ component_label }}={{ component_value }}"
+  register: pod_info
+
+- name: Get Pod Logs
+  kubernetes.core.k8s_log:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    name: "{{ pod_info.resources[0].metadata.name }}"
+    namespace: "{{ component_namespace }}"
+    container: "{{ pod_info.resources[0].spec.containers[0].name }}"
+  register: pod_logs
+  failed_when: false
+  when: pod_info.resources | length > 0
+
+- name: Analyze Pod Logs for Common Issues
+  ansible.builtin.set_fact:
+    config_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('config|configuration|conf') }}"
+    permission_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('permission|permissions|access denied') }}"
+    resource_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('resource|memory|cpu|limit') }}"
+  when: pod_info.resources | length > 0
+
+- name: Attempt Specific Recovery Based on Log Analysis
+  block:
+    - name: Restart Pod for Configuration Issues
+      kubernetes.core.k8s:
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        kind: Pod
+        name: "{{ item.metadata.name }}"
+        namespace: "{{ component_namespace }}"
+        state: absent
+      loop: "{{ pod_info.resources }}"
+      when: config_issue | default(false)
+
+    - name: Scale Down and Up Deployment for Resource Issues
+      kubernetes.core.k8s_scale:
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        kind: Deployment
+        name: "{{ item }}"
+        namespace: "{{ component_namespace }}"
+        replicas: 0
+      loop: "{{ pod_info.resources | map(attribute='metadata.ownerReferences') | flatten | selectattr('kind', 'equalto', 'Deployment') | map(attribute='name') | list | unique }}"
+      when: resource_issue | default(false)
+
+    - name: Wait Before Scaling Back Up
+      ansible.builtin.pause:
+        seconds: 10
+      when: resource_issue | default(false)
+
+    - name: Scale Back Up
+      kubernetes.core.k8s_scale:
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        kind: Deployment
+        name: "{{ item }}"
+        namespace: "{{ component_namespace }}"
+        replicas: 1
+      loop: "{{ pod_info.resources | map(attribute='metadata.ownerReferences') | flatten | selectattr('kind', 'equalto', 'Deployment') | map(attribute='name') | list | unique }}"
+      when: resource_issue | default(false)
+  when: pod_info.resources | length > 0

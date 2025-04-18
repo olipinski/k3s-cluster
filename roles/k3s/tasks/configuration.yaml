@@ -33,16 +33,27 @@
         line: KUBECONFIG={{ k3s_project.cluster.kubeconfig }}
         regexp: ^KUBECONFIG
 
-    - name: Create symlinks
-      ansible.builtin.file:
+    - name: Check existing symlinks
+      ansible.builtin.stat:
         path: "{{ k3s_map.node.directory.bin }}/{{ item }}"
-        src: "{{ k3s_project.node.binary }}"
-        state: link
+      register: symlink_stats
       loop:
         - crictl
         - ctr
         - kubectl
 
+    - name: Create or update symlinks
+      ansible.builtin.file:
+        path: "{{ k3s_map.node.directory.bin }}/{{ item.0 }}"
+        src: "{{ k3s_project.node.binary }}"
+        state: link
+        force: true
+      loop: "{{ ['crictl', 'ctr', 'kubectl'] | zip(symlink_stats.results) | list }}"
+      when: >
+        not item.1.stat.exists or
+        item.1.stat.islnk is defined and not item.1.stat.islnk or
+        (item.1.stat.islnk is defined and item.1.stat.islnk and item.1.stat.lnk_source != k3s_project.node.binary)
+        
     - name: Validate service state
       ansible.builtin.wait_for:
         port: "{{ k3s_vars.server.api.port }}"

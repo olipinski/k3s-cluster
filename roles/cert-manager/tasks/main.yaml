@@ -90,6 +90,23 @@
             kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
             wait: true
 
+        - name: Verify ClusterIssuer is Ready
+          kubernetes.core.k8s_info:
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            api_version: cert-manager.io/v1
+            kind: ClusterIssuer
+            name: "{{ certmanager_map.ca.cluster.issuer.name }}"
+          register: issuer_status
+          until: >
+            issuer_status.resources is defined and
+            issuer_status.resources | length > 0 and
+            issuer_status.resources[0].status is defined and
+            issuer_status.resources[0].status.conditions is defined and
+            (issuer_status.resources[0].status.conditions | selectattr('type', 'equalto', 'Ready') |
+             selectattr('status', 'equalto', 'True') | list | length) > 0
+          retries: 30
+          delay: 10
+
         - name: Create wildcard certificate for internal domain
           kubernetes.core.k8s:
             definition: "{{ lookup('ansible.builtin.template', 'wildcard-internal-cert.j2') | from_yaml }}"

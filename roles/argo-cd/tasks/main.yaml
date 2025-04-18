@@ -77,6 +77,26 @@
           delay: 1
           retries: 3
           until: result is not failed
+            
+        - name: Create ArgoCD Admin Secret
+          kubernetes.core.k8s:
+            definition:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: argocd-secret
+                namespace: {{ argocd_vars.kubernetes.namespace }}
+                labels:
+                  app.kubernetes.io/name: argocd-secret
+                  app.kubernetes.io/part-of: argocd
+              type: Opaque
+              stringData:
+                # Use bcrypt-hashed password directly, not as a template variable
+                "accounts.admin.password": "{{ argocd_map.credentials.server.admin.password }}"
+                "accounts.admin.passwordMtime": "{{ ansible_date_time.iso8601 }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+          no_log: true
 
         - name: Gateway Setup
           when:

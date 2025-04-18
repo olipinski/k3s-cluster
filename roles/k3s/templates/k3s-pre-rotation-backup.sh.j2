@@ -1,0 +1,52 @@
+#!/bin/bash
+set -e
+
+# Pre-rotation backup script
+# Creates a backup of all Kubernetes secrets before key rotation
+
+BACKUP_DIR="/var/lib/rancher/k3s/server/backups"
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/secrets-backup-$TIMESTAMP.tar.gz"
+
+# Create backup directory if it doesn't exist
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+
+echo "Creating backup of all Kubernetes secrets at $(date)"
+
+# Get all namespaces
+NAMESPACES=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}')
+
+# Create a temporary directory for the secrets
+TMP_DIR=$(mktemp -d)
+chmod 700 "$TMP_DIR"
+
+# Export secrets from each namespace
+for NS in $NAMESPACES; do
+  mkdir -p "$TMP_DIR/$NS"
+
+  # Get secrets in this namespace
+  SECRETS=$(kubectl get secrets -n $NS -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+
+  for SECRET in $SECRETS; do
+    # Skip service account tokens
+    if kubectl get secret -n $NS $SECRET -o jsonpath='{.type}' | grep -q "kubernetes.io/service-account-token"; then
+      continue
+    fi
+
+    # Export the secret to a YAML file
+    kubectl get secret -n $NS $SECRET -o yaml > "$TMP_DIR/$NS/$SECRET.yaml"
+  done
+done
+
+# Create a tar.gz archive of all secrets
+tar -czf "$BACKUP_FILE" -C "$TMP_DIR" .
+
+# Secure the backup file
+chmod 600 "$BACKUP_FILE"
+
+# Clean up
+rm -rf "$TMP_DIR"
+
+echo "Backup completed: $BACKUP_FILE"
+echo "Total secrets backed up: $(find "$TMP_DIR" -type f | wc -l)"
