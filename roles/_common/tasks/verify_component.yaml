@@ -188,6 +188,5 @@
           retries: "{{ component_retries | default(component_verification.default.retries) | int // 2 }}"
           delay: "{{ component_delay | default(component_verification.default.delay) }}"
   when: component_type == 'deployment'
-
 # Similar block for StatefulSet verification and recovery
 # Include other component types as needed

@@ -77,7 +77,7 @@
           delay: 1
           retries: 3
           until: result is not failed
-            
+
         - name: Create ArgoCD Admin Secret
           kubernetes.core.k8s:
             definition:
@@ -85,7 +85,7 @@
               kind: Secret
               metadata:
                 name: argocd-secret
-                namespace: {{ argocd_vars.kubernetes.namespace }}
+                namespace: { { argocd_vars.kubernetes.namespace } }
                 labels:
                   app.kubernetes.io/name: argocd-secret
                   app.kubernetes.io/part-of: argocd

@@ -53,7 +53,7 @@
         not item.1.stat.exists or
         item.1.stat.islnk is defined and not item.1.stat.islnk or
         (item.1.stat.islnk is defined and item.1.stat.islnk and item.1.stat.lnk_source != k3s_project.node.binary)
-        
+
     - name: Validate service state
       ansible.builtin.wait_for:
         port: "{{ k3s_vars.server.api.port }}"
