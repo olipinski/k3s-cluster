@@ -4,11 +4,6 @@
     file: validation.yaml
   any_errors_fatal: true
 
-- name: Verify Dependencies
-  ansible.builtin.import_tasks:
-    file: verify_dependencies.yaml
-  any_errors_fatal: true
-
 - name: Role Provisioning
   when: inventory_hostname in k3s_map.server.hosts
   block:
@@ -17,6 +12,16 @@
         port: "{{ k3s_vars.server.api.port }}"
         timeout: 30
       any_errors_fatal: true
+
+    - name: Validate Chart
+      include_tasks: roles/_common/tasks/validate_chart.yaml
+      vars:
+        project_url: "{{ argocd_project.url }}/{{ argocd_project.tag }}"
+        repository_name: "{{ argocd_vars.kubernetes.helm.repository.org }}"
+        repository_url: "{{ argocd_map.helm.repository.url }}"
+        chart_name: "{{ argocd_vars.kubernetes.helm.chart.name }}"
+        chart_namespace: "{{ argocd_vars.kubernetes.namespace }}"
+        chart_version_value: "{{ argocd_vars.kubernetes.helm.chart.version }}"
 
     - name: Set checksums fact
       ansible.builtin.uri:
@@ -49,11 +54,6 @@
       retries: 3
       until: result is not failed
 
-    - name: Add repository
-      kubernetes.core.helm_repository:
-        name: "{{ argocd_vars.kubernetes.helm.repository.org }}"
-        repo_url: "{{ argocd_map.helm.repository.url }}"
-
     - name: Chart Setup
       run_once: true
       block:
@@ -62,21 +62,14 @@
             argocd_postinstall: false
 
         - name: Install chart
-          kubernetes.core.helm:
+          include_tasks: roles/_common/tasks/upgrade_chart.yaml
+          vars:
             chart_ref: "{{ argocd_map.helm.chart.reference }}"
             chart_version: "{{ argocd_vars.kubernetes.helm.chart.version }}"
-            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-            name: "{{ argocd_vars.kubernetes.helm.chart.name }}"
-            namespace: "{{ argocd_vars.kubernetes.namespace }}"
-            timeout: "{{ argocd_map.helm.timeout }}"
-            values: "{{ lookup('ansible.builtin.template', 'values.j2') | from_yaml }}"
-            create_namespace: true
-            update_repo_cache: true
-            wait: true
-          register: result
-          delay: 1
-          retries: 3
-          until: result is not failed
+            chart_name: "{{ argocd_vars.kubernetes.helm.chart.name }}"
+            chart_namespace: "{{ argocd_vars.kubernetes.namespace }}"
+            chart_timeout: "{{ argocd_map.helm.timeout }}"
+            chart_values: "{{ lookup('ansible.builtin.template', 'values.j2') | from_yaml }}"
 
         - name: Create ArgoCD Admin Secret
           kubernetes.core.k8s:
@@ -91,7 +84,6 @@
                   app.kubernetes.io/part-of: argocd
               type: Opaque
               stringData:
-                # Use bcrypt-hashed password directly, not as a template variable
                 "accounts.admin.password": "{{ argocd_map.credentials.server.admin.password }}"
                 "accounts.admin.passwordMtime": "{{ ansible_date_time.iso8601 }}"
             kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
@@ -102,14 +94,28 @@
           when:
             - argocd_vars.kubernetes.configs.params.server.insecure is truthy
             - externaldns_vars.cloudflare.host.domain | lower != 'disabled'
-          ansible.builtin.include_tasks: roles/common/tasks/apply_gateway.yaml
+          include_role:
+            name: gateway
           vars:
-            service_name: "{{ argocd_vars.kubernetes.server.gateway.service }}"
-            service_namespace: "{{ argocd_vars.kubernetes.namespace }}"
-            service_subdomain: "{{ argocd_map.gateway.server.hostname | regex_replace('\\..*$', '') }}"
-            service_access: "{{ argocd_vars.kubernetes.service_access | default(global_map.services.default_access) }}"
+            gateway_name: "{{ argocd_vars.kubernetes.server.gateway.service }}"
+            gateway_namespace: "{{ argocd_vars.kubernetes.namespace }}"
+            gateway_subdomain: "{{ argocd_map.gateway.server.hostname | regex_replace('\\..*$', '') }}"
+            gateway_access: "{{ argocd_vars.kubernetes.service_access | default(global_map.services.default_access) }}"
             backend_service_name: "{{ argocd_vars.kubernetes.server.gateway.service }}"
             backend_service_port: 443
-            custom_annotations: "{{ argocd_map.gateway.server.annotations | default({}) }}"
-            route_name_insecure: "{{ argocd_map.gateway.server.http_route.insecure }}"
-            route_name_secure: "{{ argocd_map.gateway.server.http_route.secure }}"
+            gateway_annotations: "{{ argocd_map.gateway.server.annotations | default({}) }}"
+
+- name: Verify ArgoCD Deployment
+  run_once: true
+  include_role:
+    name: verification
+  vars:
+    component_name: "ArgoCD Server"
+    component_namespace: "{{ argocd_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ argocd_vars.kubernetes.helm.chart.name }}-server"
+    verification_retries: 40
+    verification_delay: 15
+  when:
+    - inventory_hostname in k3s_map.server.hosts
+    - lookup('env', 'SKIP_VERIFICATION') | default('false') | lower != 'true'

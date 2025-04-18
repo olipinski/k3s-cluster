@@ -1,0 +1,45 @@
+#!/bin/bash
+# Keepalived state change notification script
+
+TYPE=$1
+NAME=$2
+STATE=$3
+
+log() {
+  logger -t "keepalived-notify" "$1"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> /var/log/keepalived-state.log
+}
+
+case $STATE in
+  "MASTER")
+    log "Becoming MASTER state for $NAME"
+    # Additional sanity check - make sure haproxy is running
+    if ! systemctl is-active --quiet haproxy; then
+      log "WARNING: HAProxy not running! Starting..."
+      systemctl start haproxy
+    fi
+    # Ensure we can reach the API server
+    if ! curl --insecure --silent --max-time 5 https://127.0.0.1:{{ k3s_vars.server.api.port }}/healthz | grep -q "ok"; then
+      log "ERROR: Cannot reach API server! Verifying configuration..."
+      # You could add additional recovery steps here
+    fi
+    # Send a notification if configured
+    if [ -n "{{ global_map.credentials.cluster.postfix.user.alias | default('') }}" ]; then
+      echo "Keepalived transitioning to MASTER state on $(hostname)" | mail -s "K3s Cluster: Keepalived state change" {{ global_map.credentials.cluster.postfix.user.alias }}
+    fi
+    ;;
+  "BACKUP")
+    log "Transitioning to BACKUP state for $NAME"
+    ;;
+  "FAULT")
+    log "ERROR: Entering FAULT state for $NAME"
+    if [ -n "{{ global_map.credentials.cluster.postfix.user.alias | default('') }}" ]; then
+      echo "CRITICAL: Keepalived entering FAULT state on $(hostname)" | mail -s "K3s Cluster: Keepalived FAULT state" {{ global_map.credentials.cluster.postfix.user.alias }}
+    fi
+    ;;
+  *)
+    log "Unknown state: $STATE"
+    ;;
+esac
+
+exit 0

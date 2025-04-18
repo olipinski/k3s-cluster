@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to verify K3s API server health
+# Enhanced script to verify K3s API server health
 # Used by Keepalived for intelligent failover
 
 API_URL="https://127.0.0.1:{{ k3s_vars.server.api.port }}/healthz"
@@ -15,28 +15,35 @@ if [ "$RESPONSE" == "ok" ]; then
 else
     # Check if haproxy is running first
     if ! systemctl is-active --quiet haproxy; then
-        echo "HAProxy not running"
+        echo "HAProxy not running" >&2
         exit 1
     fi
 
     # Check each backend server directly
 {% for host, ip in k3s_map.server.hosts | zip(k3s_map_server.ips) %}
-    if curl $CURL_OPTS https://{{ ip }}:{{ k3s_vars.server.api.port }}/healthz | grep -q "ok"; then
-        echo "K3s API accessible on {{ host }} ({{ ip }})"
+    DIRECT_RESPONSE=$(curl $CURL_OPTS https://{{ ip }}:{{ k3s_vars.server.api.port }}/healthz || echo "failed")
+    if [ "$DIRECT_RESPONSE" == "ok" ]; then
+        echo "K3s API accessible on {{ host }} ({{ ip }}), but HAProxy not routing" >&2
         # HAProxy should be restarted if a backend is reachable but HAProxy isn't working
         systemctl restart haproxy
         sleep 2
         # Check if restarting fixed the issue
         if curl $CURL_OPTS $API_URL | grep -q "ok"; then
-            echo "HAProxy restart fixed the issue"
+            echo "HAProxy restart fixed the issue" >&2
             exit 0
         else
-            echo "HAProxy still not working after restart"
+            echo "HAProxy still not working after restart" >&2
             exit 1
         fi
     fi
 {% endfor %}
 
-    echo "No K3s API servers reachable"
+    # Run diagnostics
+    echo "Diagnostics:" >&2
+    echo "HAProxy Status: $(systemctl status haproxy | grep Active:)" >&2
+    echo "HAProxy Process: $(pgrep -fl haproxy || echo 'Not running')" >&2
+    echo "HAProxy Config Test: $(haproxy -c -f /etc/haproxy/haproxy.cfg)" >&2
+
+    echo "No K3s API servers reachable" >&2
     exit 1
 fi

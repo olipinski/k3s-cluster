@@ -43,54 +43,19 @@
     - 5
   tags: kubernetes
 
-- name: Charts Provisioning with Dependency Management
+- name: Charts Provisioning
   hosts: server
   become: true
   gather_facts: true
-  pre_tasks:
-    - name: Initialize Deployed Components List
-      ansible.builtin.set_fact:
-        deployed_components: ["k3s", "helm"] # These are deployed in the previous play
-
-  tasks:
-    - name: Deploy Components in Dependency Order
-      include_role:
-        name: dependency-manager
-      vars:
-        role_name: "{{ component }}"
-        component_name: "{{ component }}"
-      loop:
-        - cilium
-        - coredns
-        - cert-manager
-        - external-dns
-        - longhorn
-        - metrics-server
-        - kured
-        - victoria-logs
-        - victoria-metrics
-        - argo-cd
-        - k8s-dashboard
-      loop_control:
-        loop_var: component
-      tags: charts
-
-  post_tasks:
-    - name: Perform post-install tasks
-      ansible.builtin.include_role:
-        name: "{{ postinstall }}"
-        tasks_from: postinstall
-      loop:
-        - argo-cd
-        - cert-manager
-        - cilium
-        - coredns
-        - external-dns
-        - kured
-        - longhorn
-        - metrics-server
-        - victoria-logs
-        - k8s-dashboard
-      loop_control:
-        loop_var: postinstall
-      tags: charts
+  roles:
+    - { role: cilium, tags: [charts, cilium] }
+    - { role: coredns, tags: [charts, coredns] }
+    - { role: cert-manager, tags: [charts, cert-manager] }
+    - { role: external-dns, tags: [charts, external-dns] }
+    - { role: longhorn, tags: [charts, longhorn] }
+    - { role: metrics-server, tags: [charts, metrics-server] }
+    - { role: kured, tags: [charts, kured] }
+    - { role: victoria-logs, tags: [charts, victoria-logs] }
+    - { role: victoria-metrics, tags: [charts, victoria-metrics] }
+    - { role: argo-cd, tags: [charts, argo-cd] }
+    - { role: k8s-dashboard, tags: [charts, k8s-dashboard] }

@@ -1,5 +1,5 @@
 ---
-# Generic recovery for unknown issues
+# Enhanced generic recovery for unknown issues
 - name: Get Pod Details
   kubernetes.core.k8s_info:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
@@ -9,35 +9,77 @@
       - "{{ component_label }}={{ component_value }}"
   register: pod_info
 
-- name: Get Events Related to Pods
+- name: Get Recent Events Related to Pods
   kubernetes.core.k8s_info:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     kind: Event
     namespace: "{{ component_namespace }}"
     field_selectors:
       - "involvedObject.name={{ item.metadata.name }}"
+      - "type!=Normal"
   loop: "{{ pod_info.resources }}"
   register: pod_events
   when: pod_info.resources | length > 0
 
-- name: Display Events for Debugging
-  ansible.builtin.debug:
-    msg: |
-      Events for pod {{ item.item.metadata.name }}:
-      {% for event in item.resources %}
-      - {{ event.lastTimestamp | default('unknown') }}: {{ event.reason }} - {{ event.message }}
-      {% endfor %}
-  loop: "{{ pod_events.results }}"
-  loop_control:
-    loop_var: item
+- name: Analyze Pod Status Conditions
+  ansible.builtin.set_fact:
+    pod_status_conditions: "{{ pod_info.resources | map(attribute='status.conditions') | flatten | selectattr('status', 'equalto', 'False') | list }}"
+    pod_container_statuses: "{{ pod_info.resources | map(attribute='status.containerStatuses') | flatten | selectattr('ready', 'equalto', false) | list }}"
   when: pod_info.resources | length > 0
 
-- name: Attempt Generic Recovery by Deleting Pods
+- name: Display Comprehensive Diagnostics
+  ansible.builtin.debug:
+    msg: |
+      Recovery Diagnostics for {{ component_name }}:
+
+      Failed Conditions:
+      {% for condition in pod_status_conditions %}
+      - {{ condition.type }}: {{ condition.reason }} - {{ condition.message }}
+      {% endfor %}
+
+      Container Statuses:
+      {% for status in pod_container_statuses %}
+      - {{ status.name }}: {{ status.state | to_nice_yaml }}
+      {% endfor %}
+
+      Events:
+      {% for result in pod_events.results %}
+      {% for event in result.resources %}
+      - {{ event.lastTimestamp | default('unknown') }}: {{ event.reason }} - {{ event.message }}
+      {% endfor %}
+      {% endfor %}
+  when: pod_info.resources | length > 0
+
+- name: Check Nodes for Known Issues
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Node
+  register: nodes_info
+
+- name: Analyze Node Conditions
+  ansible.builtin.set_fact:
+    problematic_nodes: "{{ nodes_info.resources | selectattr('status.conditions', 'defined') | map(attribute='status.conditions') | flatten | selectattr('status', 'equalto', 'True') | selectattr('type', 'in', ['MemoryPressure', 'DiskPressure', 'PIDPressure', 'NetworkUnavailable']) | list }}"
+
+- name: Display Node Issues
+  ansible.builtin.debug:
+    msg: |
+      Node Issues Detected:
+      {% for condition in problematic_nodes %}
+      - {{ condition.type }} on node: {{ condition.message }}
+      {% endfor %}
+  when: problematic_nodes | length > 0
+
+- name: Attempt Recovery By Deleting Stuck Pods
   kubernetes.core.k8s:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     kind: Pod
     name: "{{ item.metadata.name }}"
     namespace: "{{ component_namespace }}"
     state: absent
+    force: true
+    grace_period: 0
   loop: "{{ pod_info.resources }}"
-  when: pod_info.resources | length > 0
+  when:
+    - pod_info.resources | length > 0
+    - pod_container_statuses is defined
+    - pod_container_statuses | length > 0

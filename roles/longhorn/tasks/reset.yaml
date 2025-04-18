@@ -12,13 +12,13 @@
 
 - name: Role Reset
   block:
-    - name: Remove repository
-      kubernetes.core.helm_repository:
-        name: "{{ longhorn_vars.kubernetes.helm.repository.org }}"
-        repo_state: absent
-      when:
-        - inventory_hostname in k3s_map.server.hosts
-        - "'helm' in ansible_facts.packages"
+    - name: Remove Repository
+      include_tasks: roles/_common/tasks/reset_chart.yaml
+      vars:
+        repository_name: "{{ longhorn_vars.kubernetes.helm.repository.org }}"
+        binary_files:
+          - longhornctl
+      when: inventory_hostname in k3s_map.server.hosts
 
     - name: Remove directory
       ansible.builtin.file:

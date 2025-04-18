@@ -1,0 +1,39 @@
+---
+- name: Verify {{ component_name }} Service Exists
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Service
+    namespace: "{{ component_namespace }}"
+    name: "{{ component_value }}"
+  register: component_service
+  until: >
+    component_service.resources is defined and
+    component_service.resources | length > 0
+  retries: "{{ verification_retries | default(30) }}"
+  delay: "{{ verification_delay | default(10) }}"
+
+- name: Check Service Endpoints
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Endpoints
+    namespace: "{{ component_namespace }}"
+    name: "{{ component_value }}"
+  register: component_endpoints
+  until: >
+    component_endpoints.resources is defined and
+    component_endpoints.resources | length > 0 and
+    component_endpoints.resources[0].subsets is defined and
+    component_endpoints.resources[0].subsets | length > 0
+  retries: "{{ verification_retries | default(30) }}"
+  delay: "{{ verification_delay | default(10) }}"
+
+- name: Log Status on Success
+  ansible.builtin.debug:
+    msg: "✅ {{ component_name }} service is ready with endpoints"
+  when:
+    - component_service.resources is defined
+    - component_service.resources | length > 0
+    - component_endpoints.resources is defined
+    - component_endpoints.resources | length > 0
+    - component_endpoints.resources[0].subsets is defined
+    - component_endpoints.resources[0].subsets | length > 0

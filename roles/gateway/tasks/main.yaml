@@ -1,0 +1,14 @@
+---
+- name: Validate Gateway Data
+  ansible.builtin.assert:
+    that:
+      - gateway_name is defined
+      - gateway_namespace is defined
+      - gateway_subdomain is defined
+      - backend_service_name is defined
+      - backend_service_port is defined
+    fail_msg: "Missing required gateway configuration parameters"
+
+- name: Apply Gateway
+  ansible.builtin.import_tasks:
+    file: apply.yaml

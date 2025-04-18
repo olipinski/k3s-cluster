@@ -1,0 +1,12 @@
+---
+- name: Validate Verification Data
+  ansible.builtin.assert:
+    that:
+      - component_name is defined
+      - component_namespace is defined
+      - component_type is defined
+      - component_value is defined
+    fail_msg: "Missing required verification parameters"
+
+- name: Verify Component {{ component_name }}
+  include_tasks: "strategies/{{ component_type }}.yaml"

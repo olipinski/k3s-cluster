@@ -1,0 +1,10 @@
+{# templates/common/resources.j2 #}
+resources:
+  limits:
+{% if component_resources_limits_cpu is truthy %}
+    cpu: {{ component_resources_limits_cpu }}
+{% endif %}
+    memory: {{ component_resources_limits_memory }}
+  requests:
+    cpu: {{ component_resources_requests_cpu }}
+    memory: {{ component_resources_requests_memory }}

@@ -1,0 +1,18 @@
+{# templates/common/monitoring.j2 #}
+{% if component_monitoring_enabled | default(false) %}
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+{% if component_monitoring_interval is falsy %}
+    interval: {{ victoriametrics_map.service.monitor.scrape.interval }}
+{% else %}
+    interval: {{ component_monitoring_interval }}
+{% endif %}
+    namespace: {{ victoriametrics_vars.kubernetes.namespace }}
+{% if component_monitoring_timeout is falsy %}
+    scrapeTimeout: {{ victoriametrics_map.service.monitor.scrape.timeout }}
+{% else %}
+    scrapeTimeout: {{ component_monitoring_timeout }}
+{% endif %}
+{% endif %}

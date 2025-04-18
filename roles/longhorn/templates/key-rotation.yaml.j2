@@ -45,94 +45,106 @@ spec:
 
               echo "Created new encryption key"
 
-              # Only rotate detached volumes first - this is safer
-              echo "Starting key rotation for detached volumes..."
-              DETACHED_VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io \
-                --field-selector="status.state!=attached" \
-                -o jsonpath='{.items[*].metadata.name}')
+              # Phase 1: Rotate non-critical volumes first
+              echo "Phase 1: Rotating non-critical volumes first"
+              # Get volumes excluding system namespaces
+              NON_CRITICAL_VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io \
+                -o jsonpath='{range .items[*]}{.metadata.name}{","}{.status.kubernetesStatus.namespace}{","}{.status.state}{"\n"}{end}' | \
+                grep -v ",kube-system," | grep -v ",longhorn-system," | grep -v ",cattle-system,")
 
-              # Count of rotated volumes
+              # Process small batches of 5 volumes at a time
+              BATCH_SIZE=5
               ROTATED_COUNT=0
 
-              # Process detached volumes first
-              for VOLUME in $DETACHED_VOLUMES; do
+              # Process volumes in small batches
+              echo "$NON_CRITICAL_VOLUMES" | while IFS=, read -r VOLUME NAMESPACE STATE; do
+                if [ -z "$VOLUME" ]; then continue; fi
+
                 if kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.spec.encrypted}' | grep -q "true"; then
-                  echo "Rotating encryption key for detached volume: $VOLUME"
+                  echo "Rotating key for volume: $VOLUME (namespace: $NAMESPACE, state: $STATE)"
+
                   kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
                     -p='[{"op": "replace", "path": "/spec/keySecret", "value": "{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new@{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}"}]'
+
                   ROTATED_COUNT=$((ROTATED_COUNT+1))
 
-                  # Add a small delay between operations to avoid overwhelming the API
-                  sleep 2
+                  # If we've rotated a batch, wait before continuing
+                  if [ $((ROTATED_COUNT % BATCH_SIZE)) -eq 0 ]; then
+                    echo "Rotated $ROTATED_COUNT volumes. Waiting for 5 minutes before continuing..."
+                    sleep 300
+                  else
+                    sleep 10
+                  fi
                 fi
               done
 
-              echo "Rotated keys for $ROTATED_COUNT detached volumes"
-
+              # Only continue to system volumes if non-critical volumes rotated successfully
               if [ $ROTATED_COUNT -gt 0 ]; then
-                echo "Waiting for detached volume key rotation to complete (5 minutes)..."
-                sleep 300
-              fi
+                echo "Successfully rotated $ROTATED_COUNT non-critical volumes"
+                echo "Waiting for stabilization before proceeding to system volumes (15 minutes)..."
+                sleep 900
 
-              # Now handle attached volumes (more risky, do one at a time with waits)
-              echo "Starting key rotation for attached volumes..."
-              ATTACHED_VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io \
-                --field-selector="status.state=attached" \
-                -o jsonpath='{.items[*].metadata.name}')
+                # Phase 2: Now rotate system volumes with extra caution (one at a time)
+                echo "Phase 2: Rotating system volumes one at a time"
+                SYSTEM_VOLUMES=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io \
+                  -o jsonpath='{range .items[*]}{.metadata.name}{","}{.status.kubernetesStatus.namespace}{","}{.status.state}{"\n"}{end}' | \
+                  grep -E ",(kube-system|longhorn-system|cattle-system),")
 
-              ATTACHED_ROTATED=0
+                SYSTEM_ROTATED=0
 
-              for VOLUME in $ATTACHED_VOLUMES; do
-                if kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.spec.encrypted}' | grep -q "true"; then
-                  # Get volume information for safety checks
-                  PVC_NAME=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.kubernetesStatus.pvcName}' 2>/dev/null || echo "")
-                  PVC_NAMESPACE=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.kubernetesStatus.namespace}' 2>/dev/null || echo "")
+                echo "$SYSTEM_VOLUMES" | while IFS=, read -r VOLUME NAMESPACE STATE; do
+                  if [ -z "$VOLUME" ]; then continue; fi
 
-                  # Skip system volumes for safety
-                  if [[ "$PVC_NAMESPACE" == "kube-system" || "$PVC_NAMESPACE" == "longhorn-system" ]]; then
-                    echo "Skipping system volume: $VOLUME ($PVC_NAMESPACE/$PVC_NAME)"
-                    continue
+                  if kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.spec.encrypted}' | grep -q "true"; then
+                    echo "Rotating key for SYSTEM volume: $VOLUME (namespace: $NAMESPACE, state: $STATE)"
+
+                    # Extra verification before rotation
+                    VOLUME_ROBUSTNESS=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.robustness}')
+                    if [[ "$VOLUME_ROBUSTNESS" != "healthy" ]]; then
+                      echo "WARNING: System volume $VOLUME is not healthy (robustness: $VOLUME_ROBUSTNESS). Skipping."
+                      continue
+                    fi
+
+                    kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
+                      -p='[{"op": "replace", "path": "/spec/keySecret", "value": "{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new@{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}"}]'
+
+                    SYSTEM_ROTATED=$((SYSTEM_ROTATED+1))
+
+                    # Wait longer for system volumes
+                    echo "Waiting for system volume to stabilize (2 minutes)..."
+                    sleep 120
+
+                    # Verify again after rotation
+                    VOLUME_ROBUSTNESS=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.robustness}')
+                    if [[ "$VOLUME_ROBUSTNESS" != "healthy" ]]; then
+                      echo "ERROR: System volume $VOLUME is not healthy after rotation! Aborting."
+                      exit 1
+                    fi
                   fi
+                done
 
-                  echo "Rotating encryption key for attached volume: $VOLUME ($PVC_NAMESPACE/$PVC_NAME)"
+                # Only update the main key if some volumes were rotated successfully
+                if [ $ROTATED_COUNT -gt 0 ] || [ $SYSTEM_ROTATED -gt 0 ]; then
+                  echo "Successfully rotated keys for $ROTATED_COUNT non-critical and $SYSTEM_ROTATED system volumes"
+                  echo "Updating main key secret..."
 
-                  # Rotate the key
-                  kubectl patch -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME --type=json \
-                    -p='[{"op": "replace", "path": "/spec/keySecret", "value": "{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new@{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }}"}]'
-                  ATTACHED_ROTATED=$((ATTACHED_ROTATED+1))
+                  kubectl get secret {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new \
+                    -n {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }} -o yaml | \
+                    sed "s/{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new/{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}/" | \
+                    kubectl replace -f - --force
 
-                  # Wait for volume to stabilize after key rotation - important for attached volumes
-                  echo "Waiting for volume $VOLUME to stabilize..."
-                  sleep 60
-
-                  # Verify volume is still healthy
-                  VOLUME_STATE=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.state}')
-                  VOLUME_ROBUSTNESS=$(kubectl get -n {{ longhorn_vars.kubernetes.namespace }} volumes.longhorn.io $VOLUME -o jsonpath='{.status.robustness}')
-
-                  echo "Volume $VOLUME state: $VOLUME_STATE, robustness: $VOLUME_ROBUSTNESS"
-
-                  if [[ "$VOLUME_ROBUSTNESS" != "healthy" ]]; then
-                    echo "WARNING: Volume $VOLUME is not healthy after key rotation! Manual intervention may be required."
-                  fi
+                  echo "Key rotation completed successfully at $(date)"
+                else
+                  echo "No volumes were rotated. Keeping old key active."
                 fi
-              done
-
-              echo "Rotated keys for $ATTACHED_ROTATED attached volumes"
-
-              # We need at least some volumes to have been rotated to update the main key
-              if [ $ROTATED_COUNT -eq 0 ] && [ $ATTACHED_ROTATED -eq 0 ]; then
-                echo "No encrypted volumes were found to rotate. Aborting main key update."
-                exit 0
+              else
+                echo "No volumes were rotated successfully. Aborting key update."
+                exit 1
               fi
-
-              echo "All volumes processed, updating main key..."
-
-              # Update main encryption key secret with the new key
-              kubectl get secret {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new \
-                -n {{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_namespace }} -o yaml | \
-                sed "s/{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}-new/{{ longhorn_vars.kubernetes.default_settings.csi_encryption_kms_secret_name }}/" | \
-                kubectl replace -f - --force
-
-              echo "Encryption key rotation completed at $(date)"
-              echo "New key has been successfully applied to all volumes and the main key secret updated."
+            volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          volumes:
+          - name: tmp
+            emptyDir: {}
           restartPolicy: OnFailure

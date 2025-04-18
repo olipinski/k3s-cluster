@@ -1,0 +1,25 @@
+---
+- name: Verify {{ component_name }} Deployment Is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Deployment
+    namespace: "{{ component_namespace }}"
+    name: "{{ component_value }}"
+  register: component_deployment
+  until: >
+    component_deployment.resources is defined and
+    component_deployment.resources | length > 0 and
+    component_deployment.resources[0].status.availableReplicas is defined and
+    component_deployment.resources[0].status.availableReplicas == component_deployment.resources[0].status.replicas
+  retries: "{{ verification_retries | default(30) }}"
+  delay: "{{ verification_delay | default(10) }}"
+
+- name: Log Status on Success
+  ansible.builtin.debug:
+    msg: "✅ {{ component_name }} deployment is ready"
+  when:
+    - component_deployment.resources is defined
+    - component_deployment.resources | length > 0
+    - component_deployment.resources[0].status.availableReplicas is defined
+    - component_deployment.resources[0].status.replicas is defined
+    - component_deployment.resources[0].status.availableReplicas == component_deployment.resources[0].status.replicas

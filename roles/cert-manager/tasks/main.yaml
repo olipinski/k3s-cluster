@@ -4,11 +4,6 @@
     file: validation.yaml
   any_errors_fatal: true
 
-- name: Verify Dependencies
-  ansible.builtin.import_tasks:
-    file: verify_dependencies.yaml
-  any_errors_fatal: true
-
 - name: Role Provisioning
   when: inventory_hostname in k3s_map.server.hosts
   block:
@@ -17,6 +12,16 @@
         port: "{{ k3s_vars.server.api.port }}"
         timeout: 30
       any_errors_fatal: true
+
+    - name: Validate Chart
+      include_tasks: roles/_common/tasks/validate_chart.yaml
+      vars:
+        project_url: "{{ certmanager_project.url }}/{{ certmanager_project.tag }}"
+        repository_name: "{{ certmanager_vars.kubernetes.helm.repository.org }}"
+        repository_url: "{{ certmanager_vars.kubernetes.helm.repository.url }}"
+        chart_name: "{{ certmanager_vars.kubernetes.helm.chart.name }}"
+        chart_namespace: "{{ certmanager_vars.kubernetes.namespace }}"
+        chart_version_value: "{{ certmanager_vars.kubernetes.helm.chart.version }}"
 
     - name: Set checksums fact
       ansible.builtin.uri:
@@ -55,11 +60,6 @@
         src: "{{ k3s_map.node.directory.bin }}/cmctl"
         state: link
 
-    - name: Add repository
-      kubernetes.core.helm_repository:
-        name: "{{ certmanager_vars.kubernetes.helm.repository.org }}"
-        repo_url: "{{ certmanager_vars.kubernetes.helm.repository.url }}"
-
     - name: Chart Setup
       run_once: true
       block:
@@ -68,21 +68,14 @@
             certmanager_postinstall: false
 
         - name: Install chart
-          kubernetes.core.helm:
+          include_tasks: roles/_common/tasks/upgrade_chart.yaml
+          vars:
             chart_ref: "{{ certmanager_map.helm.chart.reference }}"
             chart_version: "{{ certmanager_vars.kubernetes.helm.chart.version }}"
-            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-            name: "{{ certmanager_vars.kubernetes.helm.chart.name }}"
-            namespace: "{{ certmanager_vars.kubernetes.namespace }}"
-            timeout: "{{ certmanager_map.helm.timeout }}"
-            values: "{{ lookup('ansible.builtin.template', 'values.j2') | from_yaml }}"
-            create_namespace: true
-            update_repo_cache: true
-            wait: true
-          register: result
-          delay: 1
-          retries: 3
-          until: result is not failed
+            chart_name: "{{ certmanager_vars.kubernetes.helm.chart.name }}"
+            chart_namespace: "{{ certmanager_vars.kubernetes.namespace }}"
+            chart_timeout: "{{ certmanager_map.helm.timeout }}"
+            chart_values: "{{ lookup('ansible.builtin.template', 'values.j2') | from_yaml }}"
 
         - name: Create self-signed cluster issuer
           kubernetes.core.k8s:
@@ -90,26 +83,24 @@
             kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
             wait: true
 
-        - name: Verify ClusterIssuer is Ready
-          kubernetes.core.k8s_info:
-            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-            api_version: cert-manager.io/v1
-            kind: ClusterIssuer
-            name: "{{ certmanager_map.ca.cluster.issuer.name }}"
-          register: issuer_status
-          until: >
-            issuer_status.resources is defined and
-            issuer_status.resources | length > 0 and
-            issuer_status.resources[0].status is defined and
-            issuer_status.resources[0].status.conditions is defined and
-            (issuer_status.resources[0].status.conditions | selectattr('type', 'equalto', 'Ready') |
-             selectattr('status', 'equalto', 'True') | list | length) > 0
-          retries: 30
-          delay: 10
-
         - name: Create wildcard certificate for internal domain
           kubernetes.core.k8s:
             definition: "{{ lookup('ansible.builtin.template', 'wildcard-internal-cert.j2') | from_yaml }}"
             kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
             wait: true
           when: global_map.services.wildcard_cert.enabled | default(true)
+
+- name: Verify Cert-Manager Deployment
+  run_once: true
+  include_role:
+    name: verification
+  vars:
+    component_name: "Cert-Manager Controller"
+    component_namespace: "{{ certmanager_vars.kubernetes.namespace }}"
+    component_type: "deployment"
+    component_value: "{{ certmanager_vars.kubernetes.helm.chart.name }}"
+    verification_retries: 40
+    verification_delay: 15
+  when:
+    - inventory_hostname in k3s_map.server.hosts
+    - lookup('env', 'SKIP_VERIFICATION') | default('false') | lower != 'true'

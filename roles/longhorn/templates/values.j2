@@ -11,7 +11,7 @@ defaultSettings:
   autoCleanupRecurringJobBackupSnapshot: true
   autoCleanupSnapshotWhenDeleteBackup: true
   autoCleanupSystemGeneratedSnapshot: true
-  concurrentAutomaticEngineUpgradePerNodeLimit: {{ longhorn_vars.kubernetes.default_settings.concurrent_automatic_engine_upgrade_limit }}
+  concurrentAutomaticEngineUpgradeLimit: {{ longhorn_vars.kubernetes.default_settings.concurrent_automatic_engine_upgrade_limit }}
   defaultDataLocality: {{ longhorn_vars.kubernetes.default_settings.data_locality }}
   defaultDataPath: {{ longhorn_map.directory.data }}
 {% if longhorn_vars.kubernetes.default_settings.volume.replicas < 2 %}
@@ -41,7 +41,7 @@ defaultSettings:
 ingress:
   annotations:
 {% for key, value in longhorn_map.gateway.frontend.annotations.items() %}
-    {{ key | indent(4) }}: {{ value }}
+    {{ key }}: {{ value }}
 {% endfor %}
   enabled: true
   host: {{ longhorn_map.gateway.frontend.hostname }}
@@ -59,22 +59,12 @@ longhornManager:
     {{ k3s_project.cluster.tolerations | to_nice_yaml(indent=2) | trim | indent(4) }}
 {% endif %}
 {% endif %}
-{% if longhorn_postinstall is truthy and longhorn_map.metrics.service.monitor.enabled is truthy %}
-metrics:
-  serviceMonitor:
-    enabled: true
-{% if longhorn_map.metrics.service.monitor.scrape.interval is falsy %}
-    interval: {{ victoriametrics_map.service.monitor.scrape.interval }}
-{% else %}
-    interval: {{ longhorn_map.metrics.service.monitor.scrape.interval }}
-{% endif %}
-    namespace: {{ victoriametrics_vars.kubernetes.namespace }}
-{% if longhorn_map.metrics.service.monitor.scrape.timeout is falsy %}
-    scrapeTimeout: {{ victoriametrics_map.service.monitor.scrape.timeout }}
-{% else %}
-    scrapeTimeout: {{ longhorn_map.metrics.service.monitor.scrape.timeout }}
-{% endif %}
-{% endif %}
+
+{% set component_monitoring_enabled = longhorn_postinstall is truthy and longhorn_map.metrics.service.monitor.enabled is truthy %}
+{% set component_monitoring_interval = longhorn_map.metrics.service.monitor.scrape.interval %}
+{% set component_monitoring_timeout = longhorn_map.metrics.service.monitor.scrape.timeout %}
+{% include 'templates/common/monitoring.j2' %}
+
 persistence:
 {% if longhorn_vars.kubernetes.default_settings.volume.replicas < 2 %}
   defaultClassReplicaCount: 2

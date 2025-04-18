@@ -11,14 +11,22 @@ global_defs {
     vrrp_startup_delay 10
 }
 
-# Custom script to check API server functionality, not just HAProxy process
+# Health check scripts with improved reliability
 vrrp_script chk_k3s_api {
     script "/usr/local/bin/check_k3s_api.sh"
-    interval 5
+    interval 3
     weight 50
     fall 2
     rise 1
     timeout 3
+}
+
+vrrp_script chk_haproxy {
+    script "killall -0 haproxy"
+    interval 2
+    weight 25
+    fall 3
+    rise 2
 }
 
 vrrp_instance haproxy-vip {
@@ -45,6 +53,7 @@ vrrp_instance haproxy-vip {
     smtp_alert
     track_script {
         chk_k3s_api
+        chk_haproxy
     }
     virtual_router_id 10
     virtual_ipaddress {
@@ -52,6 +61,11 @@ vrrp_instance haproxy-vip {
     }
     # Prevent flapping
     nopreempt
+    preempt_delay 300
     # Delay gratuitous ARP to prevent issues
     garp_master_delay 5
+    # Add notifications
+    notify "/usr/local/bin/keepalived-notify.sh"
+    # Use VMAC for advertisement
+    use_vmac
 }

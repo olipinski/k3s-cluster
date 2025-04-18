@@ -1,6 +1,6 @@
 ---
-# Recovery for ImagePullBackOff issues
-- name: Get Pod Details for Image Pull Issues
+# More targeted recovery for ImagePullBackOff issues
+- name: Analyze Image Pull Issues
   kubernetes.core.k8s_info:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     kind: Pod
@@ -9,34 +9,33 @@
       - "{{ component_label }}={{ component_value }}"
   register: pod_info
 
-- name: Extract Image Details
+- name: Extract Image Information
   ansible.builtin.set_fact:
     container_images: "{{ pod_info.resources | map(attribute='spec.containers') | flatten | map(attribute='image') | list | unique }}"
 
-- name: Debug Image Information
+- name: Show Diagnostic Information
   ansible.builtin.debug:
-    msg: "Attempting to pull images: {{ container_images | join(', ') }}"
-  when: debug_mode | default(false) | bool
+    msg: |
+      Image pull issues detected:
+      Images: {{ container_images | join(', ') }}
 
-- name: Try Pulling Images Locally on First Node
-  ansible.builtin.command:
-    cmd: "crictl pull {{ image }}"
-  delegate_to: "{{ groups['server'][0] }}"
+      Common causes:
+      1. Registry rate limiting
+      2. Network connectivity issues
+      3. Image doesn't exist or wrong tag
+      4. Private registry authentication failure
+
+- name: Check Registry Connectivity
+  ansible.builtin.uri:
+    url: "https://{{ item.split('/')[0] if '/' in item and '.' in item.split('/')[0] else 'registry-1.docker.io' }}/v2/"
+    timeout: 10
+    validate_certs: no
   loop: "{{ container_images }}"
-  loop_control:
-    loop_var: image
-  register: pull_result
+  register: registry_check
   ignore_errors: true
+  when: container_images | length > 0
 
-- name: Report Pull Results
-  ansible.builtin.debug:
-    msg: "Image pull {{ 'successful' if item.rc == 0 else 'failed' }}: {{ item.item }}"
-  loop: "{{ pull_result.results }}"
-  loop_control:
-    loop_var: item
-  when: debug_mode | default(false) | bool
-
-- name: Delete Pods to Force Recreation
+- name: Delete Problematic Pods to Force Restart
   kubernetes.core.k8s:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     kind: Pod
@@ -44,4 +43,20 @@
     namespace: "{{ component_namespace }}"
     state: absent
   loop: "{{ pod_info.resources }}"
-  when: pull_result.results | selectattr('rc', 'equalto', 0) | list | length > 0
+  when: pod_info.resources | length > 0
+
+- name: Log Registry Issues
+  ansible.builtin.debug:
+    msg: |
+      Registry connection issues detected:
+      {{ registry_check.results | selectattr('failed', 'equalto', true) | map(attribute='item') | list | join(', ') }}
+
+      Consider checking:
+      - Firewall rules
+      - Proxy settings
+      - Registry authentication
+      - Network connectivity
+  when:
+    - registry_check is defined
+    - registry_check.results is defined
+    - registry_check.results | selectattr('failed', 'equalto', true) | list | length > 0

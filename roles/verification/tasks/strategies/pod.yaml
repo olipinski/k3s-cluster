@@ -1,0 +1,23 @@
+---
+- name: Verify {{ component_name }} Pods Are Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    kind: Pod
+    namespace: "{{ component_namespace }}"
+    label_selectors:
+      - "{{ component_label }}={{ component_value }}"
+  register: component_pods
+  until: >
+    component_pods.resources is defined and
+    component_pods.resources | length > 0 and
+    (component_pods.resources | map(attribute='status.phase') | select('equalto', 'Running') | list | length) ==
+    (component_pods.resources | length) and
+    (component_pods.resources | map(attribute='status.containerStatuses') | flatten | map(attribute='ready') | select('==', true) | list | length) ==
+    (component_pods.resources | map(attribute='status.containerStatuses') | flatten | length)
+  retries: "{{ verification_retries | default(30) }}"
+  delay: "{{ verification_delay | default(10) }}"
+
+- name: Log Status on Success
+  ansible.builtin.debug:
+    msg: "✅ {{ component_name }} pods are ready: {{ component_pods.resources | map(attribute='metadata.name') | join(', ') }}"
+  when: component_pods.resources | length > 0

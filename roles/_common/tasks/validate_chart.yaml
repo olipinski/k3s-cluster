@@ -1,0 +1,45 @@
+---
+- name: Validate Project URL
+  ansible.builtin.uri:
+    url: "{{ project_url }}"
+    timeout: 5
+  register: result
+  delay: 1
+  retries: 3
+  until: result is not failed
+  run_once: true
+
+- name: Add Repository
+  kubernetes.core.helm_repository:
+    name: "{{ repository_name }}"
+    repo_url: "{{ repository_url }}"
+
+- name: Get Deployed Chart Info
+  kubernetes.core.helm_info:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    name: "{{ chart_name }}"
+    namespace: "{{ chart_namespace }}"
+  register: release
+  changed_when: false
+  run_once: true
+
+- name: Set Comparison Facts
+  ansible.builtin.set_fact:
+    chart_version: "{{ chart_version_value }}"
+    release_version: "{{ (release.status.chart | default('0')).split('-')[-1] }}"
+  run_once: true
+
+- name: Display Chart Status
+  ansible.builtin.debug:
+    msg: |
+      Chart: {{ chart_name }}
+      Current version: {{ release_version }}
+      Target version: {{ chart_version }}
+      {% if release_version != '0' and release_version != chart_version %}
+      Status: Update available
+      {% elif release_version == '0' %}
+      Status: Not installed
+      {% else %}
+      Status: Up to date
+      {% endif %}
+  run_once: true

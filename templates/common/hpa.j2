@@ -1,0 +1,11 @@
+{# templates/common/hpa.j2 #}
+{% if component_hpa_enabled | default(false) %}
+autoscaling:
+  enabled: true
+  maxReplicas: {{ component_hpa_max_replicas }}
+  minReplicas: {{ component_hpa_min_replicas }}
+  targetCPUUtilizationPercentage: {{ component_hpa_target_cpu | default(omit) }}
+  targetMemoryUtilizationPercentage: {{ component_hpa_target_memory | default(omit) }}
+{% else %}
+replicas: {{ component_hpa_min_replicas | default(component_replicas, true) }}
+{% endif %}

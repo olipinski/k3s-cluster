@@ -1,66 +1,80 @@
 ---
-# Recovery for resource constraint issues
+# Simplified and more effective resource constraint recovery
 - name: Get Node Information
   kubernetes.core.k8s_info:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     kind: Node
   register: node_info
 
-- name: Analyze Node Resources
+- name: Analyze Cluster Resources
   ansible.builtin.set_fact:
-    nodes_allocatable_cpu: "{{ node_info.resources | map(attribute='status.allocatable.cpu') | map('regex_replace', '[^0-9]', '') | map('int') | list }}"
-    nodes_allocatable_memory: "{{ node_info.resources | map(attribute='status.allocatable.memory') | map('regex_replace', 'Ki$', '') | map('int') | list }}"
-    nodes_pressure: "{{ node_info.resources | map(attribute='status.conditions') | flatten | selectattr('type', 'equalto', 'MemoryPressure') | map(attribute='status') | list }}"
+    nodes_allocatable_cpu: "{{ node_info.resources | map(attribute='status.allocatable.cpu') | map('regex_replace', '[^0-9]', '') | map('int') | sum }}"
+    nodes_allocatable_memory_mb: "{{ node_info.resources | map(attribute='status.allocatable.memory') | map('regex_replace', '[^0-9]', '') | map('int') | map('int', base=1000) | map('round', 'megabytes') | sum }}"
+    nodes_memory_pressure: "{{ node_info.resources | map(attribute='status.conditions') | flatten | selectattr('type', 'equalto', 'MemoryPressure') | selectattr('status', 'equalto', 'True') | list | length }}"
+    nodes_disk_pressure: "{{ node_info.resources | map(attribute='status.conditions') | flatten | selectattr('type', 'equalto', 'DiskPressure') | selectattr('status', 'equalto', 'True') | list | length }}"
 
-- name: Check for Resource Pressure
-  ansible.builtin.set_fact:
-    has_memory_pressure: "{{ nodes_pressure | select('equalto', 'True') | list | length > 0 }}"
-
-- name: Advise on Resource Issues
+- name: Display Cluster Resource Information
   ansible.builtin.debug:
     msg: |
-      Resource pressure detected on cluster nodes!
-      Recommendations:
-      - Consider upgrading node resources
-      - Lower resource requests in component configurations
-      - Remove unnecessary workloads
-  when: has_memory_pressure | bool
+      Cluster Resource Analysis:
+      - Total allocatable CPU: {{ nodes_allocatable_cpu }} cores
+      - Total allocatable memory: {{ nodes_allocatable_memory_mb }} MB
+      - Nodes with Memory Pressure: {{ nodes_memory_pressure }}
+      - Nodes with Disk Pressure: {{ nodes_disk_pressure }}
 
-- name: Get Resource Owner
+      Component {{ component_name }} is having resource issues.
+
+- name: Get Component Pod Details
   kubernetes.core.k8s_info:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-    kind: "{{ owner_reference.kind }}"
-    name: "{{ owner_reference.name }}"
+    kind: Pod
     namespace: "{{ component_namespace }}"
-  loop: "{{ pod_info.resources[0].metadata.ownerReferences }}"
-  loop_control:
-    loop_var: owner_reference
-  register: resource_owner
-  when: pod_info.resources is defined and pod_info.resources | length > 0
+    label_selectors:
+      - "{{ component_label }}={{ component_value }}"
+  register: pod_info
 
-- name: Patch Resource Requirements if Possible
+- name: Analyze Pod Resource Requests
+  ansible.builtin.set_fact:
+    pod_cpu_requests: "{{ pod_info.resources | map(attribute='spec.containers') | flatten | map(attribute='resources.requests.cpu', default='0') | map('regex_replace', '[^0-9]', '') | map('int') | sum }}"
+    pod_memory_requests: "{{ pod_info.resources | map(attribute='spec.containers') | flatten | map(attribute='resources.requests.memory', default='0Mi') | map('regex_replace', '[^0-9]', '') | map('int') | sum }}"
+  when: pod_info.resources | length > 0
+
+- name: Identify Resource Owner
+  ansible.builtin.set_fact:
+    resource_owner: "{{ pod_info.resources[0].metadata.ownerReferences[0] }}"
+  when:
+    - pod_info.resources | length > 0
+    - pod_info.resources[0].metadata.ownerReferences is defined
+    - pod_info.resources[0].metadata.ownerReferences | length > 0
+
+- name: Display Recovery Recommendations
+  ansible.builtin.debug:
+    msg: |
+      Resource Recommendation for {{ component_name }}:
+
+      Current situation:
+      - Pod CPU requests: {{ pod_cpu_requests | default('unknown') }}
+      - Pod Memory requests: {{ pod_memory_requests | default('unknown') }} MB
+
+      Recommendations:
+      {% if nodes_memory_pressure > 0 %}
+      1. Memory pressure detected - add more RAM to your nodes or reduce memory requests
+      {% endif %}
+      {% if nodes_disk_pressure > 0 %}
+      2. Disk pressure detected - free up disk space or expand storage
+      {% endif %}
+
+      If this is a development environment, consider:
+      - Reducing replica count in the component configuration
+      - Setting lower memory limits
+      - Running fewer components on the same cluster
+
+- name: Delete Pods to Force Restart with Current Settings
   kubernetes.core.k8s:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
-    resource_definition:
-      apiVersion: "{{ resource_owner.results[0].resources[0].apiVersion }}"
-      kind: "{{ resource_owner.results[0].resources[0].kind }}"
-      metadata:
-        name: "{{ resource_owner.results[0].resources[0].metadata.name }}"
-        namespace: "{{ component_namespace }}"
-      spec:
-        template:
-          spec:
-            containers:
-              - name: "{{ pod_info.resources[0].spec.containers[0].name }}"
-                resources:
-                  limits:
-                    memory: "{{ (pod_info.resources[0].spec.containers[0].resources.limits.memory | regex_replace('[^0-9]', '') | int * 1.5) | int }}Mi"
-                  requests:
-                    memory: "{{ (pod_info.resources[0].spec.containers[0].resources.requests.memory | regex_replace('[^0-9]', '') | int * 0.8) | int }}Mi"
-    state: patched
-  when:
-    - pod_info.resources is defined
-    - pod_info.resources | length > 0
-    - resource_owner.results is defined
-    - resource_owner.results | length > 0
-    - has_memory_pressure | bool
+    kind: Pod
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ component_namespace }}"
+    state: absent
+  loop: "{{ pod_info.resources }}"
+  when: pod_info.resources | length > 0

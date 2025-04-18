@@ -1,0 +1,13 @@
+---
+- name: Remove Repository
+  kubernetes.core.helm_repository:
+    name: "{{ repository_name }}"
+    repo_state: absent
+  when: "'helm' in ansible_facts.packages"
+
+- name: Remove Binary Files
+  ansible.builtin.file:
+    path: "{{ k3s_map.node.directory.bin }}/{{ item }}"
+    state: absent
+  loop: "{{ binary_files | default([]) }}"
+  when: binary_files is defined

@@ -1,5 +1,5 @@
 ---
-# Recovery for CrashLoopBackOff issues
+# Enhanced recovery for CrashLoopBackOff issues
 - name: Get Pod Details for Crash Issues
   kubernetes.core.k8s_info:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
@@ -9,26 +9,81 @@
       - "{{ component_label }}={{ component_value }}"
   register: pod_info
 
-- name: Get Pod Logs
+- name: Get Recent Pod Logs
   kubernetes.core.k8s_log:
     kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
     name: "{{ pod_info.resources[0].metadata.name }}"
     namespace: "{{ component_namespace }}"
     container: "{{ pod_info.resources[0].spec.containers[0].name }}"
+    previous: false
+    tail: 50
   register: pod_logs
   failed_when: false
   when: pod_info.resources | length > 0
 
-- name: Analyze Pod Logs for Common Issues
-  ansible.builtin.set_fact:
-    config_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('config|configuration|conf') }}"
-    permission_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('permission|permissions|access denied') }}"
-    resource_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('resource|memory|cpu|limit') }}"
+- name: Get Previous Pod Logs (if available)
+  kubernetes.core.k8s_log:
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    name: "{{ pod_info.resources[0].metadata.name }}"
+    namespace: "{{ component_namespace }}"
+    container: "{{ pod_info.resources[0].spec.containers[0].name }}"
+    previous: true
+    tail: 20
+  register: previous_logs
+  failed_when: false
+  when:
+    - pod_info.resources | length > 0
+    - pod_logs.failed is not defined or not pod_logs.failed
+
+- name: Show Pod Log Analysis
+  ansible.builtin.debug:
+    msg: |
+      CrashLoopBackOff detected in {{ component_name }}
+
+      Pod: {{ pod_info.resources[0].metadata.name }}
+
+      Current Pod Logs:
+      {{ pod_logs.stdout | default('No current logs available') }}
+
+      Previous Pod Logs:
+      {{ previous_logs.stdout | default('No previous logs available') }}
+
+      Common causes:
+      1. Configuration errors
+      2. Missing dependencies
+      3. Resource constraints
+      4. Invalid command arguments
   when: pod_info.resources | length > 0
 
-- name: Attempt Specific Recovery Based on Log Analysis
+- name: Attempt Recovery Based on Log Analysis
   block:
-    - name: Restart Pod for Configuration Issues
+    - name: Check for Config Map Dependencies
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        kind: ConfigMap
+        namespace: "{{ component_namespace }}"
+      register: configmaps
+      when: pod_logs.stdout is defined and pod_logs.stdout is search('config|configuration|conf')
+
+    - name: Check for Secret Dependencies
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+        kind: Secret
+        namespace: "{{ component_namespace }}"
+      register: secrets
+      no_log: true
+      when: pod_logs.stdout is defined and pod_logs.stdout is search('secret|password|token|auth|key')
+
+    - name: Check for Permission Issues
+      ansible.builtin.set_fact:
+        permission_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('permission|permissions|access denied|forbidden') }}"
+
+    - name: Check for Resource Issues
+      ansible.builtin.set_fact:
+        resource_issue: "{{ pod_logs.stdout is defined and pod_logs.stdout is search('resource|memory|cpu|limit|OOM|out of memory') }}"
+
+    # Try targeted recovery for common issues
+    - name: Delete Pod for Fresh Start
       kubernetes.core.k8s:
         kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
         kind: Pod
@@ -36,30 +91,52 @@
         namespace: "{{ component_namespace }}"
         state: absent
       loop: "{{ pod_info.resources }}"
-      when: config_issue | default(false)
+      when: pod_info.resources | length > 0
+  when: pod_info.resources | length > 0
 
-    - name: Scale Down and Up Deployment for Resource Issues
+- name: Check Parent Object
+  block:
+    - name: Get Owner References
+      ansible.builtin.set_fact:
+        owner_refs: "{{ pod_info.resources[0].metadata.ownerReferences | default([]) }}"
+      when: pod_info.resources | length > 0
+
+    - name: Restart Deployment if Appropriate
       kubernetes.core.k8s_scale:
         kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
         kind: Deployment
-        name: "{{ item }}"
+        name: "{{ owner_ref.name }}"
         namespace: "{{ component_namespace }}"
         replicas: 0
-      loop: "{{ pod_info.resources | map(attribute='metadata.ownerReferences') | flatten | selectattr('kind', 'equalto', 'Deployment') | map(attribute='name') | list | unique }}"
-      when: resource_issue | default(false)
+      loop: "{{ owner_refs }}"
+      loop_control:
+        loop_var: owner_ref
+      when:
+        - owner_refs | length > 0
+        - owner_ref.kind == 'Deployment'
+        - resource_issue | default(false) or permission_issue | default(false)
 
     - name: Wait Before Scaling Back Up
       ansible.builtin.pause:
         seconds: 10
-      when: resource_issue | default(false)
+      when:
+        - owner_refs | length > 0
+        - resource_issue | default(false) or permission_issue | default(false)
 
     - name: Scale Back Up
       kubernetes.core.k8s_scale:
         kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
         kind: Deployment
-        name: "{{ item }}"
+        name: "{{ owner_ref.name }}"
         namespace: "{{ component_namespace }}"
         replicas: 1
-      loop: "{{ pod_info.resources | map(attribute='metadata.ownerReferences') | flatten | selectattr('kind', 'equalto', 'Deployment') | map(attribute='name') | list | unique }}"
-      when: resource_issue | default(false)
-  when: pod_info.resources | length > 0
+      loop: "{{ owner_refs }}"
+      loop_control:
+        loop_var: owner_ref
+      when:
+        - owner_refs | length > 0
+        - owner_ref.kind == 'Deployment'
+        - resource_issue | default(false) or permission_issue | default(false)
+  when:
+    - pod_info.resources | length > 0
+    - pod_info.resources[0].metadata.ownerReferences is defined

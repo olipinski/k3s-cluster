@@ -1,0 +1,21 @@
+---
+- name: Update Chart Postinstall Fact
+  ansible.builtin.set_fact:
+    "{{ component_name }}_postinstall": true
+
+- name: Update Chart Postinstall Values
+  kubernetes.core.helm:
+    chart_ref: "{{ chart_ref }}"
+    chart_version: "{{ chart_version }}"
+    kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+    name: "{{ chart_name }}"
+    namespace: "{{ chart_namespace }}"
+    timeout: "{{ chart_timeout | default('5m0s') }}"
+    values: "{{ chart_values }}"
+    reset_values: false
+    reuse_values: true
+    wait: true
+  register: result
+  delay: 1
+  retries: 3
+  until: result is not failed

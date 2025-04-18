@@ -1,0 +1,5 @@
+---
+dependencies:
+  - { role: k3s, tags: ["never"] }
+  - { role: helm, tags: ["never"] }
+  - { role: cilium, tags: ["never"] }

@@ -31,6 +31,7 @@
         - haproxy
         - keepalived
         - curl
+        - mailutils # For email notifications
 
     - name: Update haproxy configuration file
       ansible.builtin.template:
@@ -58,6 +59,23 @@
         group: root
         mode: "0755"
       notify: Restart loadbalancer services
+
+    - name: Install keepalived notification script
+      ansible.builtin.template:
+        src: keepalived-notify.sh.j2
+        dest: /usr/local/bin/keepalived-notify.sh
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart loadbalancer services
+
+    - name: Create log file for keepalived state changes
+      ansible.builtin.file:
+        path: /var/log/keepalived-state.log
+        state: touch
+        owner: root
+        group: adm
+        mode: "0640"
 
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers

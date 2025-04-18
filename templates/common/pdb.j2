@@ -1,0 +1,8 @@
+{# templates/common/pdb.j2 #}
+podDisruptionBudget:
+  enabled: true
+{% if component_pdb_min_available is defined %}
+  minAvailable: {{ component_pdb_min_available }}
+{% else %}
+  maxUnavailable: {{ component_pdb_max_unavailable | default(1) }}
+{% endif %}
