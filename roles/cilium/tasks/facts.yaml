@@ -14,23 +14,23 @@
               name: hubble-cluster-issuer
       helm:
         chart:
-          reference: '{{ cilium_vars.kubernetes.helm.repository.org }}/{{ cilium_vars.kubernetes.helm.chart.name }}'
+          reference: "{{ cilium_vars.kubernetes.helm.repository.org }}/{{ cilium_vars.kubernetes.helm.chart.name }}"
         platform:
           key: https://github.com
           raw: https://raw.githubusercontent.com
         repository:
-          name: '{{ cilium_vars.kubernetes.helm.repository.org }}/{{ cilium_vars.kubernetes.helm.repository.name }}'
-          url: '{{ cilium_vars.kubernetes.helm.repository.url }}'
+          name: "{{ cilium_vars.kubernetes.helm.repository.org }}/{{ cilium_vars.kubernetes.helm.repository.name }}"
+          url: "{{ cilium_vars.kubernetes.helm.repository.url }}"
         timeout: 5m0s
       gateway:
         hubble:
           ui:
             annotations:
-              cert-manager.io/cluster-issuer: '{{ externaldns_project.cloudflare.cluster.issuer }}'
-            hostname: '{{ cilium_vars.kubernetes.hubble.ui.gateway.subdomain }}.{{ externaldns_vars.cloudflare.host.domain }}'
+              cert-manager.io/cluster-issuer: "{{ externaldns_project.cloudflare.cluster.issuer }}"
+            hostname: "{{ cilium_vars.kubernetes.hubble.ui.gateway.subdomain }}.{{ externaldns_vars.cloudflare.host.domain }}"
             http_route:
-              insecure: '{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}-http'
-              secure: '{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}-https'
+              insecure: "{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}-http"
+              secure: "{{ cilium_vars.kubernetes.hubble.ui.gateway.service }}-https"
       metrics:
         service:
           monitor:
@@ -45,36 +45,36 @@
     cilium_project:
       release:
         cli:
-          file: '{{ cilium_vars.release.cli.version }}/{{ cilium_vars.release.cli.file }}'
+          file: "{{ cilium_vars.release.cli.version }}/{{ cilium_vars.release.cli.file }}"
           url: "{{
             '/'.join([cilium_map.helm.platform.key,
-              cilium_vars.release.cli.repository.org,
-              cilium_vars.release.cli.repository.name, 'releases', 'download'])
+            cilium_vars.release.cli.repository.org,
+            cilium_vars.release.cli.repository.name, 'releases', 'download'])
             }}"
         gateway_api:
-          file: '{{ cilium_vars.release.gateway_api.version }}/{{ cilium_vars.release.gateway_api.file }}'
+          file: "{{ cilium_vars.release.gateway_api.version }}/{{ cilium_vars.release.gateway_api.file }}"
           url: "{{
             '/'.join([cilium_map.helm.platform.key,
-              cilium_vars.release.gateway_api.repository.org,
-              cilium_vars.release.gateway_api.repository.name, 'releases', 'download'])
+            cilium_vars.release.gateway_api.repository.org,
+            cilium_vars.release.gateway_api.repository.name, 'releases', 'download'])
             }}"
         hubble:
-          file: '{{ cilium_vars.release.hubble.version }}/{{ cilium_vars.release.hubble.file }}'
+          file: "{{ cilium_vars.release.hubble.version }}/{{ cilium_vars.release.hubble.file }}"
           url: "{{
             '/'.join([cilium_map.helm.platform.key,
-              cilium_vars.release.hubble.repository.org,
-              cilium_vars.release.hubble.repository.name, 'releases', 'download'])
+            cilium_vars.release.hubble.repository.org,
+            cilium_vars.release.hubble.repository.name, 'releases', 'download'])
             }}"
-      tag: '{{ cilium_vars.kubernetes.helm.chart.version }}'
-      url: '{{ cilium_map.helm.platform.key }}/{{ cilium_map.helm.repository.name }}/releases/tag'
+      tag: "{{ cilium_vars.kubernetes.helm.chart.version }}"
+      url: "{{ cilium_map.helm.platform.key }}/{{ cilium_map.helm.repository.name }}/releases/tag"
   run_once: true
 
 - name: Set resources fact
   ansible.builtin.set_fact:
     cilium_resources:
       release:
-        - file: '{{ cilium_vars.release.cli.file }}'
-          url: '{{ cilium_project.release.cli.url }}/{{ cilium_project.release.cli.file }}'
-        - file: '{{ cilium_vars.release.hubble.file }}'
-          url: '{{ cilium_project.release.hubble.url }}/{{ cilium_project.release.hubble.file }}'
+        - file: "{{ cilium_vars.release.cli.file }}"
+          url: "{{ cilium_project.release.cli.url }}/{{ cilium_project.release.cli.file }}"
+        - file: "{{ cilium_vars.release.hubble.file }}"
+          url: "{{ cilium_project.release.hubble.url }}/{{ cilium_project.release.hubble.file }}"
   run_once: true

@@ -9,12 +9,12 @@
   block:
     - name: Install k3s binary
       ansible.builtin.get_url:
-        url: '{{ k3s_project.release.k3s.file }}'
+        url: "{{ k3s_project.release.k3s.file }}"
         checksum: sha256:{{ k3s_project.release.k3s.checksum }}
-        dest: '{{ k3s_project.node.binary }}'
+        dest: "{{ k3s_project.node.binary }}"
         owner: root
         group: root
-        mode: '755'
+        mode: "755"
       register: result
       delay: 1
       retries: 3
@@ -22,11 +22,11 @@
 
     - name: Create configuration directory
       ansible.builtin.file:
-        path: '{{ k3s_map.node.directory.config }}'
+        path: "{{ k3s_map.node.directory.config }}"
         state: directory
         owner: root
         group: root
-        mode: '755'
+        mode: "755"
 
     - name: Set role postinstall fact
       ansible.builtin.set_fact:
@@ -35,10 +35,10 @@
     - name: Create configuration file
       ansible.builtin.template:
         src: config.j2
-        dest: '{{ k3s_project.cluster.config }}'
+        dest: "{{ k3s_project.cluster.config }}"
         owner: root
         group: root
-        mode: '600'
+        mode: "600"
 
     - name: Create service file
       ansible.builtin.template:
@@ -46,7 +46,7 @@
         dest: /etc/systemd/system/{{ k3s_map.service.name }}.service
         owner: root
         group: root
-        mode: '644'
+        mode: "644"
 
     - name: Create service environment file
       ansible.builtin.file:
@@ -56,7 +56,7 @@
         state: touch
         owner: root
         group: root
-        mode: '600'
+        mode: "600"
 
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
@@ -76,7 +76,7 @@
     - name: Update server configuration file
       ansible.builtin.template:
         src: config.j2
-        dest: '{{ k3s_project.cluster.config }}'
+        dest: "{{ k3s_project.cluster.config }}"
         owner: root
         group: root
-        mode: '600'
+        mode: "600"

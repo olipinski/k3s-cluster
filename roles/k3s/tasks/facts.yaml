@@ -3,12 +3,12 @@
   ansible.builtin.set_fact:
     k3s_map:
       agent:
-        ha: '{{ groups.agent | length > 2 }}'
+        ha: "{{ groups.agent | length > 2 }}"
       cluster:
         dns: 10.43.0.10
         label: default
       loadbalancer:
-        hosts: '{{ groups.server[-2:] }}'
+        hosts: "{{ groups.server[-2:] }}"
         password: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_letters', 'digits'], length=8) }}"
       node:
         default_registry_endpoint:
@@ -64,16 +64,16 @@
             effect: NoSchedule
       release:
         k3s:
-          checksum: '{{ k3s_vars.release.k3s.checksum }}'
-          url: 'https://github.com/{{ k3s_vars.release.k3s.repository.org }}/{{ k3s_vars.release.k3s.repository.name }}/releases'
+          checksum: "{{ k3s_vars.release.k3s.checksum }}"
+          url: "https://github.com/{{ k3s_vars.release.k3s.repository.org }}/{{ k3s_vars.release.k3s.repository.name }}/releases"
         kubepug:
-          checksum: '{{ k3s_vars.release.kubepug.name }}_{{ k3s_vars.release.kubepug.version[1:] }}_{{ k3s_vars.release.kubepug.checksum }}'
-          url: 'https://github.com/{{ k3s_vars.release.kubepug.repository.org }}/{{ k3s_vars.release.kubepug.repository.name }}/releases'
+          checksum: "{{ k3s_vars.release.kubepug.name }}_{{ k3s_vars.release.kubepug.version[1:] }}_{{ k3s_vars.release.kubepug.checksum }}"
+          url: "https://github.com/{{ k3s_vars.release.kubepug.repository.org }}/{{ k3s_vars.release.kubepug.repository.name }}/releases"
       server:
-        default_host: '{{ hostvars[groups.server[0]].ansible_hostname | default(groups.server[0]) }}'
-        ha: '{{ groups.server | length > 2 }}'
-        hosts: '{{ groups.server }}'
-        non_ha: '{{ groups.server | length == 1 }}'
+        default_host: "{{ hostvars[groups.server[0]].ansible_hostname | default(groups.server[0]) }}"
+        ha: "{{ groups.server | length > 2 }}"
+        hosts: "{{ groups.server }}"
+        non_ha: "{{ groups.server | length == 1 }}"
       service:
         name: "k3s{{ '-agent' if inventory_hostname not in groups.server }}"
   run_once: true
@@ -93,7 +93,7 @@
 - name: Set node fact
   ansible.builtin.set_fact:
     k3s_node:
-      ip: '{{ ansible_default_ipv4.address }}'
+      ip: "{{ ansible_default_ipv4.address }}"
       kubelet:
         - arg: eviction-hard
           value: imagefs.available<15%,imagefs.inodesFree<5%,memory.available<500Mi,nodefs.available<10%,nodefs.inodesFree<5%
@@ -113,26 +113,26 @@
   ansible.builtin.set_fact:
     k3s_project:
       cluster:
-        config: '{{ k3s_map.node.directory.config }}/config.yaml'
-        kubeconfig: '{{ k3s_map.node.directory.config }}/{{ k3s_vars.release.k3s.name }}.yaml'
-        registries: '{{ k3s_map.node.directory.config }}/registries.yaml'
+        config: "{{ k3s_map.node.directory.config }}/config.yaml"
+        kubeconfig: "{{ k3s_map.node.directory.config }}/{{ k3s_vars.release.k3s.name }}.yaml"
+        registries: "{{ k3s_map.node.directory.config }}/registries.yaml"
         token: "{{ hostvars[k3s_map.server.default_host].k3s_project.cluster.token | default('') }}"
         tolerations: "{{ k3s_map.node.tolerations | select('search', 'control-plane') | default('') }}"
       node:
-        binary: '{{ k3s_map.node.directory.bin }}/{{ k3s_vars.release.k3s.name }}'
+        binary: "{{ k3s_map.node.directory.bin }}/{{ k3s_vars.release.k3s.name }}"
       release:
         k3s:
-          checksum: '{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_map.release.k3s.checksum }}'
-          file: '{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_vars.release.k3s.file }}'
+          checksum: "{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_map.release.k3s.checksum }}"
+          file: "{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_vars.release.k3s.file }}"
         kubepug:
-          checksum: '{{ k3s_map.release.kubepug.url }}/download/{{ k3s_vars.release.kubepug.version }}/{{ k3s_map.release.kubepug.checksum }}'
-          file: '{{ k3s_map.release.kubepug.url }}/download/{{ k3s_vars.release.kubepug.version }}/{{ k3s_vars.release.kubepug.file }}'
+          checksum: "{{ k3s_map.release.kubepug.url }}/download/{{ k3s_vars.release.kubepug.version }}/{{ k3s_map.release.kubepug.checksum }}"
+          file: "{{ k3s_map.release.kubepug.url }}/download/{{ k3s_vars.release.kubepug.version }}/{{ k3s_vars.release.kubepug.file }}"
   run_once: true
 
 - name: Set project kubelet arguments fact
   ansible.builtin.set_fact:
     k3s_project_kubelet_args: "{{ k3s_project_kubelet_args | default([]) | union(['='.join((kubelet.arg | string, kubelet.value | string))]) | sort }}"
-  loop: '{{ k3s_node.kubelet }}'
+  loop: "{{ k3s_node.kubelet }}"
   loop_control:
     loop_var: kubelet
   run_once: true
@@ -140,7 +140,7 @@
 - name: Set project taints fact
   ansible.builtin.set_fact:
     k3s_project_taints: "{{ k3s_project_taints | default([]) | union([':'.join((taint.key | string, taint.effect | string))]) | sort }}"
-  loop: '{{ k3s_map.node.tolerations }}'
+  loop: "{{ k3s_map.node.tolerations }}"
   loop_control:
     loop_var: taint
   run_once: true
@@ -150,7 +150,7 @@
     k3s_resources:
       node:
         kubelet:
-          args: '{{ k3s_project_kubelet_args }}'
+          args: "{{ k3s_project_kubelet_args }}"
         taint:
           agent: "{{ k3s_project_taints | select('search', 'agent-not-ready') | default('') }}"
           server: "{{ k3s_project_taints | select('search', 'control-plane') | default('') }}"
@@ -158,5 +158,5 @@
 
 - name: Set variables fact
   ansible.builtin.set_fact:
-    k3s_vars: '{{ k3s_vars }}'
+    k3s_vars: "{{ k3s_vars }}"
   run_once: true

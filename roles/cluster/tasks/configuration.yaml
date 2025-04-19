@@ -41,7 +41,7 @@
             dest: /etc/apt/apt.conf.d/90rpi-firmware-purge
             owner: root
             group: root
-            mode: '644'
+            mode: "644"
 
     - name: USB Device Configuration
       when: cluster_vars.device.enabled is truthy
@@ -80,7 +80,7 @@
                     regexp: ^ACTION
                     owner: root
                     group: root
-                    mode: '644'
+                    mode: "644"
                     create: true
 
     - name: Mounted Filesystem
@@ -115,9 +115,9 @@
       ansible.builtin.set_fact:
         cluster_host:
           extension: "{{ host_all_fqdns.stdout | split | first | split('.') | last | default('local') }}"
-          fqdn: '{{ host_all_fqdns.stdout | split | first }}'
+          fqdn: "{{ host_all_fqdns.stdout | split | first }}"
           ipv4: "{{ ansible_default_ipv4['address'] }}"
-          name: '{{ ansible_host }}'
+          name: "{{ ansible_host }}"
 
     - name: Set host fqdn
       ansible.builtin.replace:
@@ -147,7 +147,7 @@
         state: touch
         owner: root
         group: root
-        mode: '644'
+        mode: "644"
       notify: Reboot
       when: cluster_vars.service.cloud_init.enabled is falsy
 
@@ -159,7 +159,7 @@
 
     - name: Disable snapd services
       ansible.builtin.systemd_service:
-        name: '{{ item }}'
+        name: "{{ item }}"
         state: stopped
         enabled: false
       loop:
@@ -183,7 +183,7 @@
         dest: /etc/modules-load.d/kubernetes.conf
         owner: root
         group: root
-        mode: '644'
+        mode: "644"
       notify: Reboot
 
     - name: Unattended Upgrades
@@ -199,8 +199,8 @@
         - name: Update unattended upgrades configuration
           ansible.builtin.replace:
             path: /etc/apt/apt.conf.d/50unattended-upgrades
-            regexp: '{{ item.regexp }}'
-            replace: '{{ item.replace }}'
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
           loop:
             - regexp: ^(?:.*)(\"\${distro_id}:\${distro_codename}-updates\";)$
               replace: \t\g<1>
@@ -219,13 +219,13 @@
       ansible.builtin.debconf:
         name: postfix
         question: postfix/{{ item.question }}
-        value: '{{ item.value }}'
-        vtype: '{{ item.vtype }}'
+        value: "{{ item.value }}"
+        vtype: "{{ item.vtype }}"
       when: item.enabled is truthy
       loop:
         # General mail configuration type
         - question: main_mailer_type
-          value: 'Satellite system'
+          value: "Satellite system"
           vtype: select
           enabled: true
         # System mail name
@@ -235,7 +235,7 @@
           enabled: true
         # SMTP relay host
         - question: relayhost
-          value: '[{{ cluster_vars.service.postfix.relay.host }}]:{{ cluster_vars.service.postfix.relay.port }}'
+          value: "[{{ cluster_vars.service.postfix.relay.host }}]:{{ cluster_vars.service.postfix.relay.port }}"
           vtype: string
           enabled: true
         # Recipient for root and postmaster mail
@@ -251,7 +251,7 @@
           enabled: false
         # Force synchronous updates on mail queue
         - question: chattr
-          value: 'true'
+          value: "true"
           vtype: boolean
           enabled: true
         # Local networks
@@ -262,17 +262,17 @@
         # Local address extension character
         # Disabled, using default value, kept as reference
         - question: recipient_delim
-          value: '+'
+          value: "+"
           vtype: string
           enabled: false
         # Mailbox size limit (bytes)
         - question: mailbox_limit
-          value: '51200000'
+          value: "51200000"
           vtype: string
           enabled: true
         # Internet protocols to use
         - question: protocols
-          value: '{{ cluster_vars.service.postfix.protocols }}'
+          value: "{{ cluster_vars.service.postfix.protocols }}"
           vtype: select
           enabled: true
 
@@ -290,14 +290,14 @@
         dest: /etc/postfix/generic
         owner: root
         group: root
-        mode: '600'
+        mode: "600"
 
     - name: Set sasl password fact
       ansible.builtin.set_fact:
         sasl_password:
-          - '[{{ cluster_vars.service.postfix.relay.host }}]'
-          - '{{ cluster_vars.service.postfix.relay.port }} {{ global_map.credentials.cluster.postfix.user.name }}'
-          - '{{ global_map.credentials.cluster.postfix.user.password }}'
+          - "[{{ cluster_vars.service.postfix.relay.host }}]"
+          - "{{ cluster_vars.service.postfix.relay.port }} {{ global_map.credentials.cluster.postfix.user.name }}"
+          - "{{ global_map.credentials.cluster.postfix.user.password }}"
 
     - name: Create sasl password map
       ansible.builtin.copy:
@@ -305,7 +305,7 @@
         dest: /etc/postfix/sasl/password
         owner: root
         group: root
-        mode: '600'
+        mode: "600"
 
     - name: Initialize map database
       ansible.builtin.command:
@@ -317,10 +317,10 @@
 
     - name: Set map file permissions
       ansible.builtin.file:
-        path: '{{ item }}'
+        path: "{{ item }}"
         owner: root
         group: root
-        mode: '600'
+        mode: "600"
       loop:
         - /etc/postfix/generic.db
         - /etc/postfix/sasl/password.db
@@ -335,7 +335,7 @@
         - name: smtp_generic_maps
           value: hash:/etc/postfix/generic
         - name: smtp_sasl_auth_enable
-          value: 'yes'
+          value: "yes"
         - name: smtp_sasl_password_maps
           value: hash:/etc/postfix/sasl/password
         - name: smtp_sasl_security_options

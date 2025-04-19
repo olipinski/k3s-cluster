@@ -1,7 +1,7 @@
 ---
 - name: Role Facts
   ansible.builtin.include_role:
-    name: '{{ role }}'
+    name: "{{ role }}"
     tasks_from: facts
   loop:
     - cluster
@@ -18,13 +18,13 @@
     - name: Set sysctl token value
       ansible.posix.sysctl:
         name: net.ipv4.ip_nonlocal_bind
-        value: '1'
+        value: "1"
         sysctl_file: /etc/sysctl.d/90-ip-nonlocal-bind.conf
         sysctl_set: true
 
     - name: Install loadbalancer packages
       ansible.builtin.apt:
-        name: '{{ item }}'
+        name: "{{ item }}"
         autoremove: true
         update_cache: true
       loop:
@@ -36,7 +36,7 @@
         block: "{{ lookup('ansible.builtin.template', 'haproxy.j2') }}"
         dest: /etc/haproxy/haproxy.cfg
         insertafter: ^\terrorfile\s504\s\/etc\/haproxy\/errors\/504\.http$
-        marker: '# {mark} K3s Settings'
+        marker: "# {mark} K3s Settings"
         prepend_newline: true
 
     - name: Update keepalived configuration file
@@ -45,7 +45,7 @@
         dest: /etc/keepalived/keepalived.conf
         owner: root
         group: root
-        mode: '644'
+        mode: "644"
 
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers

@@ -14,12 +14,12 @@
     - name: Find firmware backup files
       ansible.builtin.find:
         path: /boot/firmware
-        patterns: '*.bak'
+        patterns: "*.bak"
         recurse: true
       register: backup_files
 
     - name: Purge firmware backup files
       ansible.builtin.file:
-        path: '{{ item }}'
+        path: "{{ item }}"
         state: absent
       loop: "{{ backup_files.files | map(attribute='path') | list }}"

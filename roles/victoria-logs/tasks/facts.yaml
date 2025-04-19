@@ -4,23 +4,23 @@
     victorialogs_map:
       helm:
         chart:
-          reference: '{{ victorialogs_vars.kubernetes.helm.repository.org }}/{{ victorialogs_vars.kubernetes.helm.chart.name }}'
-          version: '{{ victorialogs_vars.kubernetes.helm.chart.version[1:] }}'
+          reference: "{{ victorialogs_vars.kubernetes.helm.repository.org }}/{{ victorialogs_vars.kubernetes.helm.chart.name }}"
+          version: "{{ victorialogs_vars.kubernetes.helm.chart.version[1:] }}"
         platform:
           key: https://github.com
           raw: https://raw.githubusercontent.com
         repository:
-          name: '{{ victorialogs_vars.kubernetes.helm.repository.org }}/{{ victorialogs_vars.kubernetes.helm.repository.name }}'
-          url: '{{ victorialogs_vars.kubernetes.helm.repository.url }}/{{ victorialogs_vars.kubernetes.helm.repository.name }}'
+          name: "{{ victorialogs_vars.kubernetes.helm.repository.org }}/{{ victorialogs_vars.kubernetes.helm.repository.name }}"
+          url: "{{ victorialogs_vars.kubernetes.helm.repository.url }}/{{ victorialogs_vars.kubernetes.helm.repository.name }}"
         timeout: 5m0s
       ingress:
         class:
           name: cilium
         server:
           annotations:
-            cert-manager.io/cluster-issuer: '{{ externaldns_project.cloudflare.cluster.issuer }}'
-          hostname: '{{ victorialogs_vars.kubernetes.server.ingress.subdomain }}.{{ externaldns_vars.cloudflare.host.domain }}'
-          name: '{{ victorialogs_vars.kubernetes.helm.chart.alias }}-{{ victorialogs_vars.kubernetes.helm.chart.name }}-server'
+            cert-manager.io/cluster-issuer: "{{ externaldns_project.cloudflare.cluster.issuer }}"
+          hostname: "{{ victorialogs_vars.kubernetes.server.ingress.subdomain }}.{{ externaldns_vars.cloudflare.host.domain }}"
+          name: "{{ victorialogs_vars.kubernetes.helm.chart.alias }}-{{ victorialogs_vars.kubernetes.helm.chart.name }}-server"
       metrics:
         service:
           monitor:
@@ -35,6 +35,6 @@
 - name: Set project fact
   ansible.builtin.set_fact:
     victorialogs_project:
-      tag: '{{ victorialogs_vars.kubernetes.helm.chart.name }}-{{ victorialogs_map.helm.chart.version }}'
-      url: '{{ victorialogs_map.helm.platform.key }}/{{ victorialogs_map.helm.repository.name }}/releases/tag'
+      tag: "{{ victorialogs_vars.kubernetes.helm.chart.name }}-{{ victorialogs_map.helm.chart.version }}"
+      url: "{{ victorialogs_map.helm.platform.key }}/{{ victorialogs_map.helm.repository.name }}/releases/tag"
   run_once: true

@@ -59,7 +59,7 @@
   post_tasks:
     - name: Perform post-install tasks
       ansible.builtin.include_role:
-        name: '{{ postinstall }}'
+        name: "{{ postinstall }}"
         tasks_from: postinstall
       loop:
         - argo-cd
