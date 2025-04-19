@@ -28,6 +28,21 @@
 
 - name: Role Upgrade
   block:
+    - name: Handle Encryption Key Rotation
+      when:
+        - inventory_hostname in k3s_map.server.hosts
+        - k3s_vars.encryption.enabled is truthy
+        - k3s_vars.encryption.rotate_keys is truthy
+        - k3s_vars.encryption.old_key | length > 0
+      block:
+        - name: Create encryption config with old and new keys
+          ansible.builtin.template:
+            src: encryption-rotation.j2
+            dest: "{{ k3s_vars.encryption.config_path }}"
+            owner: root
+            group: root
+            mode: "0600"
+          notify: Restart service
     - name: Install k3s binary
       ansible.builtin.get_url:
         url: "{{ k3s_project.release.k3s.file }}"

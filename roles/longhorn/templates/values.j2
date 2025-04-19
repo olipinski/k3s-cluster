@@ -30,6 +30,17 @@ defaultSettings:
 {% if k3s_resources.node.taint.server | length > 0 %}
   taintToleration: {{ k3s_resources.node.taint.server | join | trim }}
 {% endif %}
+{% if longhorn_vars.kubernetes.encryption.enabled is truthy %}
+  CSIAttacherReplicaCount: {{ longhorn_vars.kubernetes.default_settings.csi.attacher_replicas }}
+  CSIProvisionerReplicaCount: {{ longhorn_vars.kubernetes.default_settings.csi.provisioner_replicas }}
+  CSIResizerReplicaCount: {{ longhorn_vars.kubernetes.default_settings.csi.resizer_replicas }}
+  CSISnapshotterReplicaCount: {{ longhorn_vars.kubernetes.default_settings.csi.snapshotter_replicas }}
+  CSIEncryptionEnabled: true
+  CSIEncryptionKMSType: secret
+  CSIEncryptionKMSSecretName: {{ longhorn_vars.kubernetes.encryption.secret_name }}
+  CSIEncryptionKeyRotationPeriod: {{ longhorn_vars.kubernetes.encryption.key_rotation_period }}
+  CSIEncryptionKMSEncryptParameters: "crypto_key_provider={{ longhorn_vars.kubernetes.encryption.provider }}"
+{% endif %}
 {% if externaldns_vars.cloudflare.host.domain | lower != 'disabled' and longhorn_vars.kubernetes.frontend.ingress.enabled is truthy %}
 ingress:
   annotations:

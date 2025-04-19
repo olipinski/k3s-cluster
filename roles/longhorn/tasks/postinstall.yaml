@@ -26,3 +26,31 @@
           delay: 1
           retries: 3
           until: result is not failed
+
+        - name: Configure Encrypted Storage Class
+          when:
+            - inventory_hostname in k3s_map.server.hosts
+            - longhorn_vars.kubernetes.encryption.enabled is truthy
+            - longhorn_vars.kubernetes.encryption.default_volume_encryption is truthy
+          run_once: true
+          block:
+            - name: Create encrypted storage class
+              kubernetes.core.k8s:
+                definition:
+                  apiVersion: storage.k8s.io/v1
+                  kind: StorageClass
+                  metadata:
+                    name: longhorn-encrypted
+                    annotations:
+                      storageclass.kubernetes.io/is-default-class: "false"
+                  provisioner: driver.longhorn.io
+                  allowVolumeExpansion: true
+                  parameters:
+                    numberOfReplicas: "{{ longhorn_vars.kubernetes.default_settings.volume.replicas }}"
+                    staleReplicaTimeout: "30"
+                    fromBackup: ""
+                    encrypted: "true"
+                    crypto_key_provider: "{{ longhorn_vars.kubernetes.encryption.provider }}"
+                    crypto_secret_name: "{{ longhorn_vars.kubernetes.encryption.secret_name }}"
+                kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+                wait: true

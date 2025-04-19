@@ -160,3 +160,18 @@
   ansible.builtin.set_fact:
     k3s_vars: "{{ k3s_vars }}"
   run_once: true
+
+- name: Check existing encryption config
+  ansible.builtin.stat:
+    path: "{{ k3s_vars.encryption.config_path }}"
+  register: encryption_config_stat
+  when:
+    - inventory_hostname in k3s_map.server.hosts
+    - k3s_vars.encryption.enabled is truthy
+
+- name: Set encryption status fact
+  ansible.builtin.set_fact:
+    k3s_encryption_configured: "{{ encryption_config_stat.stat.exists | default(false) }}"
+  when:
+    - inventory_hostname in k3s_map.server.hosts
+    - k3s_vars.encryption.enabled is truthy

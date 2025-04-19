@@ -4,27 +4,31 @@ longhorn_vars:
     backup:
       enabled: true
       poll_interval: 300
-
       target: cifs://nas.noty.cc/backup
+    encryption:
+      enabled: true
+      provider: luks
+      secret_name: "longhorn-encryption-key"
+      key_rotation_period: 43200 # In minutes (30 days)
+      default_volume_encryption: false # Whether to enable encryption for all volumes by default
     default_settings:
       collect_usage_metrics: false
-
       concurrent_automatic_engine_upgrade_limit: 1
-
       data_locality: best-effort
       log_level: Warn
-
       node_drain_policy: block-for-eviction
-
       pod_deletion_policy: delete-both-statefulset-and-deployment-pod
       volume:
         replica_auto_balance: least-effort
-
         replicas: 2
+      csi:
+        attacher_replicas: 3
+        provisioner_replicas: 3
+        resizer_replicas: 3
+        snapshotter_replicas: 3
     frontend:
       gateway:
         service: longhorn-frontend
-
         subdomain: longhorn
       ingress:
         # -- If `false`, HTTPRoute is used, otherwise Ingress

@@ -54,3 +54,7 @@ tls-san:
 {% if k3s_project.cluster.token | length > 0 %}
 token: {{ k3s_project.cluster.token }}
 {% endif %}
+{% if k3s_node.service | lower == 'server' and k3s_vars.encryption.enabled is truthy %}
+secrets-encryption: true
+secrets-encryption-config: {{ k3s_vars.encryption.config_path }}
+{% endif %}

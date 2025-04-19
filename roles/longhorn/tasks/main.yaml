@@ -31,6 +31,19 @@
         name: "{{ longhorn_vars.kubernetes.helm.repository.org }}"
         repo_url: "{{ longhorn_vars.kubernetes.helm.repository.url }}"
 
+    - name: Volume Encryption Setup
+      when:
+        - inventory_hostname in k3s_map.server.hosts
+        - longhorn_vars.kubernetes.encryption.enabled is truthy
+      run_once: true
+      block:
+        - name: Create encryption key secret
+          kubernetes.core.k8s:
+            definition: "{{ lookup('ansible.builtin.template', 'encryption-key.j2') | from_yaml }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+          no_log: true
+
     - name: Chart Setup
       run_once: true
       block:

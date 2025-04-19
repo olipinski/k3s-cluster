@@ -21,6 +21,28 @@
         group: root
         mode: "600"
 
+- name: Secret Encryption Configuration
+  when:
+    - inventory_hostname in k3s_map.server.hosts
+    - k3s_vars.encryption.enabled is truthy
+  block:
+    - name: Ensure encryption config directory exists
+      ansible.builtin.file:
+        path: "{{ k3s_vars.encryption.config_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Create K3s secret encryption configuration
+      ansible.builtin.template:
+        src: encryption.j2
+        dest: "{{ k3s_vars.encryption.config_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      notify: Restart service
+
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
 

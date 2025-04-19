@@ -47,3 +47,9 @@ k3s_vars:
       port: 6443
   service:
     debug: false
+  encryption:
+    enabled: true
+    key: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_letters', 'digits', 'punctuation'], length=32) }}"
+    config_path: "/var/lib/rancher/k3s/server/encryption-config.yaml"
+    rotate_keys: false # Set to true when key rotation is needed
+    old_key: "" # Previous key used during rotation

@@ -1,0 +1,116 @@
+---
+- name: K3s Encryption Key Rotation
+  hosts: server
+  become: true
+  gather_facts: true
+  vars_prompt:
+    - name: confirm_rotation
+      prompt: "WARNING: This will rotate your K3s encryption keys. Ensure you have a backup. Continue? [yes/NO]"
+      private: false
+  tasks:
+    - name: Generate New Encryption Key
+      when: confirm_rotation | lower == 'yes'
+      block:
+        - name: Generate new key
+          ansible.builtin.set_fact:
+            new_encryption_key: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_letters', 'digits', 'punctuation'], length=32) }}"
+
+        - name: Store old key
+          ansible.builtin.set_fact:
+            old_encryption_key: "{{ k3s_vars.encryption.key }}"
+
+        - name: Update encryption variables
+          ansible.utils.update_fact:
+            updates:
+              - path: k3s_vars.encryption.key
+                value: "{{ new_encryption_key }}"
+              - path: k3s_vars.encryption.old_key
+                value: "{{ old_encryption_key }}"
+              - path: k3s_vars.encryption.rotate_keys
+                value: true
+
+        - name: Apply encryption config rotation
+          ansible.builtin.include_role:
+            name: k3s
+            tasks_from: configuration.yaml
+
+        - name: Restart K3s to apply changes
+          ansible.builtin.service:
+            name: "{{ k3s_map.service.name }}"
+            state: restarted
+
+        - name: Wait for K3s to stabilize
+          ansible.builtin.pause:
+            seconds: 30
+            prompt: "Waiting for K3s to restart with new encryption configuration..."
+
+        - name: Force re-encryption of all secrets
+          ansible.builtin.command:
+            cmd: >
+              {{ k3s_project.node.binary }} kubectl get secrets --all-namespaces -o json |
+              {{ k3s_project.node.binary }} kubectl replace -f -
+          run_once: true
+
+- name: Longhorn Encryption Key Rotation
+  hosts: server
+  become: true
+  gather_facts: true
+  vars_prompt:
+    - name: confirm_rotation
+      prompt: "WARNING: This will rotate your Longhorn encryption keys. Ensure you have a backup. Continue? [yes/NO]"
+      private: false
+  tasks:
+    - name: Manual Encryption Key Rotation
+      when: confirm_rotation | lower == 'yes'
+      run_once: true
+      block:
+        - name: Create new encryption key secret
+          kubernetes.core.k8s:
+            definition: "{{ lookup('ansible.builtin.template', 'roles/longhorn/templates/key-rotation.j2') | from_yaml }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+          no_log: true
+
+        - name: Update Longhorn settings to use new key
+          kubernetes.core.k8s:
+            definition:
+              apiVersion: longhorn.io/v1beta2
+              kind: Setting
+              metadata:
+                name: csi-encryption-kms-secret-name
+                namespace: "{{ longhorn_vars.kubernetes.namespace }}"
+              value: "{{ longhorn_vars.kubernetes.encryption.secret_name }}-new"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+
+        - name: Wait for settings to propagate
+          ansible.builtin.pause:
+            seconds: 30
+            prompt: "Waiting for Longhorn to recognize the new encryption key..."
+
+        - name: Rename new key to replace old key
+          kubernetes.core.k8s:
+            definition:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: "{{ longhorn_vars.kubernetes.encryption.secret_name }}"
+                namespace: "{{ longhorn_vars.kubernetes.namespace }}"
+              data:
+                CRYPTO_KEY_VALUE: "{{ lookup('ansible.builtin.k8s', kind='Secret', namespace=longhorn_vars.kubernetes.namespace, resource_name=longhorn_vars.kubernetes.encryption.secret_name+'-new').data.CRYPTO_KEY_VALUE }}"
+                CRYPTO_KEY_PROVIDER: "{{ lookup('ansible.builtin.k8s', kind='Secret', namespace=longhorn_vars.kubernetes.namespace, resource_name=longhorn_vars.kubernetes.encryption.secret_name+'-new').data.CRYPTO_KEY_PROVIDER }}"
+              type: Opaque
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            state: patched
+            force: true
+            wait: true
+          no_log: true
+
+        - name: Remove temporary key
+          kubernetes.core.k8s:
+            kind: Secret
+            name: "{{ longhorn_vars.kubernetes.encryption.secret_name }}-new"
+            namespace: "{{ longhorn_vars.kubernetes.namespace }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            state: absent
+            wait: true
