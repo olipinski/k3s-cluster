@@ -146,7 +146,9 @@ cilium_vars:
           memory: 128Mi
   release:
     cli:
-      file: cilium-linux-arm64.tar.gz
+      file_map:
+        x86_64: cilium-linux-amd64.tar.gz
+        aarch64: cilium-linux-arm64.tar.gz
       repository:
         name: cilium-cli
         org: cilium
@@ -158,7 +160,9 @@ cilium_vars:
         org: kubernetes-sigs
       version: v1.2.1
     hubble:
-      file: hubble-linux-arm64.tar.gz
+      file_map:
+        x86_64: hubble-linux-amd64.tar.gz
+        aarch64: hubble-linux-arm64.tar.gz
       repository:
         name: hubble
         org: cilium

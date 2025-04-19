@@ -122,11 +122,11 @@
         binary: "{{ k3s_map.node.directory.bin }}/{{ k3s_vars.release.k3s.name }}"
       release:
         k3s:
-          checksum: "{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_map.release.k3s.checksum }}"
-          file: "{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_vars.release.k3s.file }}"
+          checksum: "{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_vars.release.k3s.checksum_map[ansible_architecture] }}"
+          file: "{{ k3s_map.release.k3s.url }}/download/{{ k3s_vars.release.k3s.version }}/{{ k3s_vars.release.k3s.file_map[ansible_architecture] }}"
         kubepug:
           checksum: "{{ k3s_map.release.kubepug.url }}/download/{{ k3s_vars.release.kubepug.version }}/{{ k3s_map.release.kubepug.checksum }}"
-          file: "{{ k3s_map.release.kubepug.url }}/download/{{ k3s_vars.release.kubepug.version }}/{{ k3s_vars.release.kubepug.file }}"
+          file: "{{ k3s_map.release.kubepug.url }}/download/{{ k3s_vars.release.kubepug.version }}/{{ k3s_vars.release.kubepug.file_map[ansible_architecture] }}"
   run_once: true
 
 - name: Set project kubelet arguments fact

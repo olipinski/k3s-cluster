@@ -50,7 +50,7 @@
     argocd_project:
       release:
         checksum: "{{ argocd_vars.release.version }}/{{ argocd_vars.release.checksum }}"
-        file: "{{ argocd_vars.release.version }}/{{ argocd_vars.release.file }}"
+        file: "{{ argocd_vars.release.version }}/{{ argocd_vars.release.file_map[ansible_architecture] }}"
         url: "{{
           '/'.join([argocd_map.helm.platform.key,
           argocd_vars.release.repository.org,

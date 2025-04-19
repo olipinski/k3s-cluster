@@ -39,7 +39,9 @@ longhorn_vars:
         url: https://charts.longhorn.io
     namespace: kube-system
   release:
-    file: longhornctl-linux-arm64
+    file_map:
+      x86_64: longhornctl-linux-amd64
+      aarch64: longhornctl-linux-arm64
     repository:
       name: cli
       org: longhorn

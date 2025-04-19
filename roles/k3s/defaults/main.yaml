@@ -18,9 +18,12 @@ k3s_vars:
     interface: eth0
   release:
     k3s:
-      checksum: sha256sum-arm64.txt
-
-      file: k3s-arm64
+      checksum_map:
+        x86_64: sha256sum-amd64.txt
+        aarch64: sha256sum-arm64.txt
+      file_map:
+        x86_64: k3s
+        aarch64: k3s-arm64
       name: k3s
       repository:
         name: k3s
@@ -28,8 +31,9 @@ k3s_vars:
       version: v1.32.3+k3s1
     kubepug:
       checksum: checksums.txt
-
-      file: kubepug_linux_arm64.tar.gz
+      file_map:
+        x86_64: kubepug_linux_amd64.tar.gz
+        aarch64: kubepug_linux_arm64.tar.gz
       name: kubepug
       repository:
         name: kubepug

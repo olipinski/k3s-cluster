@@ -173,8 +173,9 @@ argocd_vars:
           memory: 128Mi
   release:
     checksum: cli_checksums.txt
-
-    file: argocd-linux-arm64
+    file_map:
+      x86_64: argocd-linux-amd64
+      aarch64: argocd-linux-arm64
     repository:
       name: argo-cd
       org: argoproj

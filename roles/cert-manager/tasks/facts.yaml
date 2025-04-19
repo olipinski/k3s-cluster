@@ -32,7 +32,7 @@
     certmanager_project:
       release:
         checksum: "{{ certmanager_vars.release.version }}/{{ certmanager_vars.release.checksum }}"
-        file: "{{ certmanager_vars.release.version }}/{{ certmanager_vars.release.file }}"
+        file: "{{ certmanager_vars.release.version }}/{{ certmanager_vars.release.file_map[ansible_architecture] }}"
         url: "{{
           '/'.join([certmanager_map.helm.platform.key,
           certmanager_vars.release.repository.org,

@@ -40,7 +40,7 @@
   ansible.builtin.set_fact:
     longhorn_project:
       release:
-        file: "{{ longhorn_vars.release.version }}/{{ longhorn_vars.release.file }}"
+        file: "{{ longhorn_vars.release.file_map[ansible_architecture] }}"
         url: "{{
           '/'.join([longhorn_map.helm.platform.key,
           longhorn_vars.release.repository.org,

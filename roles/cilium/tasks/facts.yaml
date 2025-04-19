@@ -45,21 +45,21 @@
     cilium_project:
       release:
         cli:
-          file: "{{ cilium_vars.release.cli.version }}/{{ cilium_vars.release.cli.file }}"
+          file: "{{ cilium_vars.release.cli.file_map[ansible_architecture] }}"
           url: "{{
             '/'.join([cilium_map.helm.platform.key,
             cilium_vars.release.cli.repository.org,
             cilium_vars.release.cli.repository.name, 'releases', 'download'])
             }}"
         gateway_api:
-          file: "{{ cilium_vars.release.gateway_api.version }}/{{ cilium_vars.release.gateway_api.file }}"
+          file: "{{ cilium_vars.release.gateway_api.file }}"
           url: "{{
             '/'.join([cilium_map.helm.platform.key,
             cilium_vars.release.gateway_api.repository.org,
             cilium_vars.release.gateway_api.repository.name, 'releases', 'download'])
             }}"
         hubble:
-          file: "{{ cilium_vars.release.hubble.version }}/{{ cilium_vars.release.hubble.file }}"
+          file: "{{ cilium_vars.release.hubble.file_map[ansible_architecture] }}"
           url: "{{
             '/'.join([cilium_map.helm.platform.key,
             cilium_vars.release.hubble.repository.org,
@@ -73,8 +73,8 @@
   ansible.builtin.set_fact:
     cilium_resources:
       release:
-        - file: "{{ cilium_vars.release.cli.file }}"
+        - file: "{{ cilium_vars.release.cli.file_map[ansible_architecture] }}"
           url: "{{ cilium_project.release.cli.url }}/{{ cilium_project.release.cli.file }}"
-        - file: "{{ cilium_vars.release.hubble.file }}"
+        - file: "{{ cilium_vars.release.hubble.file_map[ansible_architecture] }}"
           url: "{{ cilium_project.release.hubble.url }}/{{ cilium_project.release.hubble.file }}"
   run_once: true
