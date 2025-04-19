@@ -14,7 +14,6 @@ global_map:
     argocd:
       server:
         admin:
-          # -- See [documentation](https://axivo.com/k3s-cluster/tutorials/handbook/argocd/#credentials), for details
           password: !vault |
             $ANSIBLE_VAULT;1.1;AES256
             34393938613865616665666136616561313166303463366665313630383439343035356161663963
@@ -24,7 +23,7 @@ global_map:
             62333838313937393162373537353632613866313161343366343361653738366265
         user:
           name: floren
-          # -- See [documentation](https://axivo.com/k3s-cluster/tutorials/handbook/argocd/#credentials), for details
+
           password: !vault |
             $ANSIBLE_VAULT;1.1;AES256
             64633339333736643362666261326638663532663037666334366366626236316235316566323730
@@ -62,7 +61,6 @@ global_map:
     externaldns:
       cloudflare:
         api:
-          # -- See [documentation](https://axivo.com/k3s-cluster/tutorials/handbook/externaldns/#cloudflare), for details
           token: !vault |
             $ANSIBLE_VAULT;1.1;AES256
             31393030336132653638356333626264653665653336613361356265366164333539393665386131
@@ -74,7 +72,6 @@ global_map:
     kured:
       slack:
         notify:
-          # -- See [documentation](https://axivo.com/k3s-cluster/tutorials/handbook/kured/#slack), for details
           url: !vault |
             $ANSIBLE_VAULT;1.1;AES256
             65346138646335313333393731396164323561333538653835656436306164353735376332373364
