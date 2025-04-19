@@ -6,9 +6,6 @@
 
 - name: Role Reset
   when: inventory_hostname in k3s_map.server.hosts
-  block:
-    - name: Remove repository
-      kubernetes.core.helm_repository:
-        name: "{{ coredns_vars.kubernetes.helm.repository.org }}"
-        repo_state: absent
-      when: "'helm' in ansible_facts.packages"
+  include_tasks: roles/_common/tasks/reset_chart.yaml
+  vars:
+    repository_name: "{{ coredns_vars.kubernetes.helm.repository.org }}"

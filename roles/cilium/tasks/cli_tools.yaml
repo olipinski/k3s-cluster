@@ -1,0 +1,32 @@
+---
+- name: Download Cilium CLI and Hubble tools
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    checksum: sha256:{{ item.url }}.sha256sum
+    dest: /tmp
+    owner: root
+    group: root
+    mode: "644"
+  loop: "{{ cilium_resources.release }}"
+  register: result
+  delay: 1
+  retries: 3
+  until: result is not failed
+  check_mode: false
+
+- name: Install binaries
+  ansible.builtin.unarchive:
+    src: "{{ cilium_project.release.cli.url }}/{{ cilium_project.release.cli.file }}"
+    dest: "{{ k3s_map.node.directory.bin }}"
+    owner: root
+    group: root
+    mode: "755"
+    remote_src: true
+  loop: "{{ cilium_resources.release }}"
+
+- name: Remove archives
+  ansible.builtin.file:
+    path: /tmp/{{ item.file }}
+    state: absent
+  loop: "{{ cilium_resources.release }}"
+  check_mode: false
