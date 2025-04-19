@@ -47,5 +47,17 @@
         group: root
         mode: "644"
 
+- name: Validate loadbalancer health
+  ansible.builtin.uri:
+    url: "https://{{ k3s_vars.server.api.host }}:{{ k3s_vars.server.api.port }}/healthz"
+    validate_certs: false
+    status_code: 200
+  register: lb_health
+  retries: 6
+  delay: 10
+  until: lb_health is success
+  when: inventory_hostname == k3s_map.loadbalancer.hosts[0]
+  failed_when: false
+
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers

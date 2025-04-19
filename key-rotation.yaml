@@ -114,3 +114,15 @@
             kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
             state: absent
             wait: true
+
+- name: Verify rotation success
+  kubernetes.core.k8s_exec:
+    namespace: kube-system
+    pod: "{{ pod_name.stdout }}"
+    command: >-
+      kubectl get secrets --all-namespaces -o json |
+      grep -c "k8s:enc:aescbc:v1:"
+  register: encrypted_secrets
+  failed_when: encrypted_secrets.stdout | int < 1
+  when: confirm_rotation | lower == 'yes'
+  run_once: true

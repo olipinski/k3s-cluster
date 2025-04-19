@@ -6,8 +6,8 @@ resources:
     providers:
     - aescbc:
         keys:
-        - name: key2
+        - name: key2  # Current active key for encryption
           secret: {{ k3s_vars.encryption.key | b64encode }}
-        - name: key1
+        - name: key1  # Previous key for decryption only
           secret: {{ k3s_vars.encryption.old_key | b64encode }}
-    - identity: {}
+    - identity: {}  # Fallback, never used for encryption

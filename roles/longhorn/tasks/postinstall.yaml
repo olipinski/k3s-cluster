@@ -54,3 +54,22 @@
                     crypto_secret_name: "{{ longhorn_vars.kubernetes.encryption.secret_name }}"
                 kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
                 wait: true
+
+        - name: Create test PVC to validate storage
+          kubernetes.core.k8s:
+            state: present
+            definition: "{{ lookup('ansible.builtin.template', 'test-pvc.j2') | from_yaml }}"
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+            wait: true
+          run_once: true
+          register: test_pvc
+
+        - name: Cleanup test PVC
+          kubernetes.core.k8s:
+            state: absent
+            api_version: v1
+            kind: PersistentVolumeClaim
+            name: longhorn-test-pvc
+            namespace: default
+            kubeconfig: "{{ k3s_project.cluster.kubeconfig }}"
+          run_once: true
